@@ -1,0 +1,113 @@
+有，而且你其實可以把這次結果講成「**假設被修正了**」，而不是「試了一個工具失敗」。
+
+你原本的假設是：
+
+> 「如果把 codebase 系統化地建成 knowledge graph，應該就能比較容易理解 legacy business logic。」
+
+試完 Understand Anything 之後，你學到的是：
+
+> **真正的 bottleneck 不是缺一張 code graph，而是缺「被驗證過、帶脈絡、可累積的 knowledge」。**
+
+這是很有價值的結論。
+
+因為 UA 幫你證明了一件事：就算把 code structure 自動整理出來，`A calls B`、`module X belongs to domain Y` 這些資訊本身，還是不等於：
+
+- 為什麼當初這樣設計
+- 哪些 exception 是業務規則
+- 哪些東西是歷史包袱
+- 哪些流程是「不能隨便改」的
+- 哪個 interpretation 已經被資深工程師確認過
+
+所以你可以把你的 learning 定義成：
+
+**「AI code understanding」跟「organizational knowledge」是兩個不同問題。**
+
+Claude Code 已經很會做前者；你真正缺的是後者。
+
+---
+
+那「然後呢」就可以很自然地接成一個新的方向：
+
+### 下一步不是再找一個更漂亮的 graph 工具
+
+而是驗證：
+
+> **我們能不能把每次 AI-assisted investigation 的結果，低成本地沉澱成下一個人可以直接重用的 knowledge？**
+
+例如你今天為了一個 task，花半小時跟 Claude 追出：
+
+> 「這個 retry condition 是因為 legacy customer migration；只有 A/B customer type 會走這條 path，而且如果改掉還會影響 nightly reconciliation。」
+
+這才是真正有價值的東西。
+
+現在它通常死在 Claude conversation 裡。
+
+你的下一步可以是測一個非常小的 workflow：
+
+**問題 → Claude 幫忙 investigation → 工程師確認 → 留下一個短 knowledge note**
+
+note 裡只需要：
+
+> **Question**  
+> 為什麼這裡要 retry？
+>
+> **Answer**  
+> 因為 XXX business case。
+>
+> **Evidence**  
+> `FooService.java`、`BarJob.java`、相關 commit / PR。
+>
+> **Gotcha**  
+> 修改時要注意 XXX。
+>
+> **Verified by / date**
+
+這個東西的重點不是文件寫得多漂亮。
+
+而是下次你、另一個新人，甚至 Claude Code 再遇到同一個 domain，可以先拿這些 **verified knowledge** 當 context，而不是重新推理一次。
+
+---
+
+所以你的整個 research journey 就變成：
+
+> **第一個發現：** Claude Code 很有效地降低陌生 code 的 exploration cost。
+>
+> **第二個問題：** 但每次 exploration 都是 disposable，knowledge 沒有累積。
+>
+> **第一個 hypothesis：** 用 Understand Anything 這種工具自動建立 knowledge graph。
+>
+> **實驗結果：** structure 可以自動化，但 business meaning 不會因為 graph 就自然出現。
+>
+> **新的 learning：** 真正值得累積的不是所有 code relationship，而是經過 investigation 和人工確認的 business knowledge。
+>
+> **下一步：** 驗證一個低 friction 的「AI investigation → verified knowledge → reuse」流程，看看能不能減少之後重複追 code / 問資深工程師的成本。
+
+這樣主管聽完就不會是：
+
+> 「喔，所以 Understand Anything 不行。」
+
+而比較像：
+
+> 「喔，你本來以為問題是 code graph，實驗後發現其實是 knowledge capture。」
+
+這就是一個滿好的 technical discovery。
+
+如果你要在 1-1 裡講，我甚至會收斂成這段：
+
+我一開始以為，Claude Code 的問題是每次都只能單點問，所以如果能把整個 codebase 自動整理成 knowledge graph，應該可以更系統化地理解和累積 legacy system 的知識。
+
+所以我實際試了 Understand Anything。
+
+試完之後，我覺得這個假設只對了一半。它確實可以把 code structure、dependency、domain relationship 系統化地整理出來，但這些資訊沒有明顯解決我最痛的問題，也就是「這段 code 背後為什麼要這樣做」。
+
+這讓我目前的想法有一些改變。我覺得我們真正缺的可能不是更完整的 code graph，而是把每次工程師透過 AI 做 investigation、最後確認過的 business knowledge 留下來。
+
+現在 Claude 已經可以幫我們很快找到答案，但答案通常留在一次性的 conversation 裡；下次遇到相同問題，另一個人又重新 trace 一次。
+
+所以我下一步比較想驗證的是：能不能設計一個很低成本的流程，把 AI investigation 後確認過的重要結論、相關 code 和注意事項累積起來，之後可以直接提供給人或 AI 重用。
+
+如果這件事有效，它解決的會比單純建立 code graph 更接近我一開始遇到的 knowledge transfer 問題。
+
+而且這裡還有一個很好的 **success metric**：不是「產了多少文件」，而是看之後遇到類似 task 時，**是否減少重新 trace code 的時間，以及是否減少需要打斷資深工程師的次數**。
+
+這樣下一步就非常具體，不會變成無止境地繼續找下一個 AI 工具。

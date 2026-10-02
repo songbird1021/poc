@@ -1,0 +1,2 @@
+1. 那我要怎麼證明understand anything結果差強人意
+2. 我有需要嘗試codegraph那種減少LLM token用量的工具嗎

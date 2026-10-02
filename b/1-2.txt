@@ -1,0 +1,167 @@
+知道，而且我覺得你現在卡住的地方其實很值得拿去 1:1 講。因為你已經得到一個比「我找到一個很酷的 AI tool」更有意思的結論：
+
+> **真正拖慢 onboarding 的不一定是「看不懂 code structure」，而是「無法快速把 code structure 對應到 business logic」。Knowledge graph 只解掉前半段。**
+
+這是我查完 Graphify、Understand Anything，以及近期相關開源工具後最明顯的感覺。
+
+### 先講 Graphify / Understand Anything：你可能沒有用錯
+
+Graphify 的核心其實不是那張 `graph.html`。它自己把 graph 定位成給 coding agent 查詢的 infrastructure：code 用 tree-sitter 在 local 建出 call/import/inherit 等關係，然後讓 agent 去做「誰 call 這個」、「A 到 B 中間經過什麼」、「改這個可能影響哪裡」這類 traversal。:chatgpt-content-reference{index="0"}
+
+Understand Anything 也是一樣。Dashboard 只是其中一個介面，它現在真正主推的是 `/understand-chat`、`/understand-explain`、`/understand-onboard`，甚至專門有 `/understand-domain` 做 business domain / flow extraction。:chatgpt-content-reference{index="1"}
+
+所以你現在的：
+
+> 跑完 → 哇，好大一張圖 → 然後勒？
+
+其實正好命中這類工具的 UX 問題。
+
+**Graph 本身通常不是答案。它比較像 index。**
+
+你下一步不要「瀏覽 graph」，而是拿你 onboarding 時真的問過的問題去打它。例如：
+
+- 「使用者按下 X 後，從 API entry point 到 DB write / event publish 的完整 flow 是什麼？每一步給我 source file/function。」
+- 「這個 status 為什麼會從 A 變 B？列出所有可能 trigger。」
+- 「我要修改某個 business rule，最可能涉及哪些 files？哪些是直接 dependency，哪些只是推測？」
+- 「列出這個系統最核心的 5 個 user/business flows，不要按照 folder structure 分類。」
+- 「假設我是新工程師，按照 dependency 順序，給我 2 小時可以讀完的 code reading path。」
+
+UA 特別值得再試一次 `/understand-domain` 和 `/understand-onboard`；我反而不會花太多時間自己點 dashboard。
+
+---
+
+### 為什麼你會覺得成效差強人意
+
+這裡我覺得有一個根本問題。
+
+Static analysis 很擅長知道：
+
+`Controller → Service → Repository → DB`
+
+但你 onboarding 真正在搞懂的通常是：
+
+`為什麼 premium customer 走另一條路？`  
+`為什麼這裡 timeout 之後不能 retry？`  
+`為什麼 status=FAILED 在這個情境其實代表 pending manual review？`
+
+後面這些資訊可能散落在 tests、comments、feature flags、config、PR history、tickets、Slack，甚至只存在某個 senior engineer 腦中。
+
+**AST / knowledge graph 可以很準地畫出「what connects to what」，卻不保證知道「why」。**
+
+這也就是為什麼我會把你的實驗結論定義成：
+
+**code graph 可以降低 navigation cost，但未必直接降低 domain-learning cost。**
+
+而且社群回饋其實也符合這個方向。Understand Anything 有使用者明確反映第一次 `/understand` 慢、token consumption 高；但同一位使用者也說，建立完 index 後，後續 `/understand-chat`、`/understand-explain` 的品質比單純 Claude Code 好。作者也承認 speed/token 是持續優化的 tradeoff。:chatgpt-content-reference{index="2"}
+
+現在 UA 的 discussions 裡仍有 token usage、graph 應該「teach what」、progressive understanding 等討論，顯示這個產品形態本身還在探索「graph 建好之後到底怎麼變成有效理解」。:chatgpt-content-reference{index="3"}
+
+Graphify 這邊也不是完全成熟；有人在大型 repo 遇過 scalability 問題，issue review 也把 scalability / trust boundary 列成主要弱點。:chatgpt-content-reference{index="4"}
+
+所以我不會把你的結果解讀成「AI 沒用」。比較像：
+
+> **把整個 repo 一次轉成一張圖，可能不是 onboarding 最好的 abstraction。**
+
+---
+
+## 那什麼比較 promising？
+
+如果你的目的明確是 **新工程師 onboarding**，我其實會從「graph-first」往 **guided documentation / question-driven exploration** 移。
+
+| 工具 | 我覺得適合什麼 | 對你這題的意義 |
+|---|---|---|
+| **RepoWiki** | onboarding / reading guide | 我最建議你下一個試。它先建 import graph + PageRank，再產生 architecture、modules、reading guide，還可以 chat；MIT、local repo、結果可 export。比一張大 graph 更接近「新手下一步該看什麼」。:chatgpt-content-reference{index="5"} |
+| **Serena** | 實際工作時找 code | 不強迫你先理解完整 repo，而是透過 LSP 做 symbol-level retrieval / relationship navigation，讓 agent 像 IDE 一樣找 definition/reference。比較接近「遇到 ticket 時理解需要的那一小塊」。目前 Serena app 是 GPL-3.0-or-later。:chatgpt-content-reference{index="6"} |
+| **Aider repo map** | 給 LLM 精簡的全域 context | 很值得當作 design reference。它不是把完整 graph 丟給模型，而是用 tree-sitter + graph ranking 挑出當下最重要的 symbols，塞進有限 token budget。我覺得這個 philosophy 很合理。:chatgpt-content-reference{index="7"} |
+| **OpenDeepWiki** | 建真正可閱讀的 internal wiki | Docs、chat、MCP 都有，自架開源；但部署較重，而且仍需要 LLM provider/API key。:chatgpt-content-reference{index="8"} |
+| **GitNexus** | 還是想走 graph，但讓 agent 用 | 它把 call chains / clusters / execution flows 預先算好，再透過 MCP 給 agent 查，比「人肉看 graph」合理得多。:chatgpt-content-reference{index="9"} |
+
+如果只能再花時間試 **一個**，以你現在「onboarding + business logic」的目的，我會試 **RepoWiki**。
+
+如果目的改成：
+
+> 「我已經 onboard 了，但每天接 ticket 時還是花很多時間定位 code。」
+
+那我反而會先試 **Serena**。
+
+Aider 則很值得研究它的 repo-map 思路：它刻意不追求把所有東西展示給你，而是問「**對現在這個問題，LLM 最少需要知道哪些 repo context？**」這個方向我覺得比「做一張完整 graph」成熟。:chatgpt-content-reference{index="10"}
+
+要注意，「open source / 免費」不一定等於 **LLM inference 免費**。例如 RepoWiki 本身 MIT，但預設仍要接 DeepSeek/OpenAI/Anthropic 等 model；OpenDeepWiki 也要求配置 provider。你如果公司的要求是「code 不能出去 + 完全零 API 費」，那還得再加 local model/Ollama 這一層。:chatgpt-content-reference{index="11"}
+
+---
+
+# 我覺得你 1:1 最該怎麼講
+
+不要把主題訂成：
+
+> 「我研究了 Graphify 跟 Understand Anything。」
+
+這會變成 tool demo。
+
+我會把主題訂成：
+
+> **「我這三個月 onboarding 的一個 observation：理解 business logic 是很大的成本，我想看看 AI 能不能縮短這段時間。」**
+
+然後 Graphify / UA 只是你的 experiment。
+
+你甚至可以把它包成一個很漂亮的：
+
+**Problem → Hypothesis → Experiment → Learning → Next step**
+
+這會比「我試了 AI 覺得不太好用」成熟很多。
+
+你可以大概這樣講：
+
+這三個月在接手 codebase 的過程中，我發現自己有蠻大一部分時間不是花在寫 code，而是在建立 context，尤其是理解 code 裡面的 business logic。
+
+所以我最近有在想一個問題：這一段 onboarding cost 有沒有可能用 AI 降低？
+
+我有先試了 Graphify 跟 Understand Anything。它們基本上會分析整個 codebase，建立 dependency / knowledge graph，再讓你從視覺化介面或 AI 去探索。
+
+實際試完後，我目前的感覺是效果有幫助，但沒有一開始想像中那麼直接。
+
+它們在回答「這個 function 跟哪些東西有關」、「這個 module 的 dependency 是什麼」這類 structural question 時蠻有價值；但我 onboarding 最花時間的，其實常常不是 code structure，而是「這段 code 對應的是什麼 business rule」、「為什麼流程是這樣設計」、「某個狀態在實際業務上代表什麼」。
+
+這些資訊不一定能單靠 static analysis 從 code 裡還原出來。
+
+所以我現在反而覺得，問題可能不是「怎麼把整個 codebase 畫成一張更好的 graph」，而是「怎麼讓新人針對一個實際 business flow，很快找到正確的 code、文件跟 context」。
+
+我想下一步可以拿兩三個實際的 workflow 做一個很小的 experiment，例如 [某核心流程]，比較：
+人工理解這個 flow 要多久；
+一般 AI coding assistant 要多久；
+加上 repo map / semantic retrieval / generated onboarding guide 之後要多久；
+以及產出的理解有多少需要 senior engineer correction。
+
+如果有明顯效果，我覺得最後有價值的東西不一定是一個 AI tool 本身，而可能是一套 onboarding workflow：新人進來時，有幾個 canonical business flows、對應的 code reading path，再讓 AI 幫忙做 source-grounded Q&A。
+
+我也想聽你的看法：以你來看，新人理解這個 codebase 時，最值得先掌握的兩三個 business flows 會是哪幾個？
+
+我很喜歡最後那句。
+
+因為這樣你不是在跟主管：
+
+**「report 我研究了什麼。」**
+
+而是在邀請主管：
+
+**「幫我定義什麼才叫 onboarding 成功。」**
+
+---
+
+而且我甚至不建議你在 1:1 說：
+
+> 「我覺得 Graphify / UA 成效不好。」
+
+改成：
+
+> **「目前看起來 structural understanding 有改善，但 domain understanding 的提升有限。」**
+
+再補：
+
+> **「所以我的假設從『generate a whole-codebase map』修正成『task-driven / business-flow-driven retrieval 可能更有效』。」**
+
+這句其實就是這三個月很有價值的 learning。
+
+尤其是試用期接近三個月，我會把重點放在：**你遇到 friction → 沒有只抱怨 → 主動找方法 → 做 experiment → 發現原 hypothesis 不完全成立 → 提出更精準的下一步。**
+
+這比硬要證明「我找到一個 AI 工具可以節省 40% onboarding time」可信很多。

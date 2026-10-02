@@ -1,0 +1,281 @@
+懂，而且你這段其實比前面抽象討論「business logic」有用很多。你現在已經有兩個非常適合拿來做研究的真實案例。
+
+我先確認我理解的 domain：
+
+- 系統是在做半導體機台驗機 / release。
+- tool 分成 `process` / `metrology`。
+- form 又有 `golden` / `second`。
+- 同時還有 A form / B form：
+  - A 比較偏機台能力
+  - B 比較偏製程能力
+- Golden tool 可以理解成 benchmark / 模範機台。
+- Golden A form 記錄 benchmark tool 在各個 check item 的表現。
+- Second tool 要選一台 golden tool 當 reference，比較兩者差異。
+- 差異在允許範圍內，second tool 才能 release。
+
+這樣理解是通的。
+
+而你遇到的兩個問題，其實剛好代表兩種完全不同的「legacy business logic difficulty」。
+
+## 問題 1：Golden 看得到，但為什麼不能選？
+
+這個不是單純的 code navigation 問題。
+
+真正的問題是：
+
+> **「一台 golden tool 到底滿足哪些條件，才有資格被某個 second form 選？」**
+
+使用者目前只看到：
+
+> Search 出來了 → 出現在 list → 但不能選。
+
+所以背後應該存在某種 eligibility rule，例如我隨便舉結構上的可能性，不代表你們真的如此：
+
+```text
+Golden tool exists
+    ↓
+同 tool type?
+    ↓
+有 valid golden form?
+    ↓
+form status 是否 released?
+    ↓
+A/B form 是否符合?
+    ↓
+recipe / process / site 等條件?
+    ↓
+是否被 disable / expired?
+    ↓
+eligible
+```
+
+你現在真正難的是：
+
+**UI 呈現了一個結果，但沒有呈現背後的 business decision。**
+
+這就是非常好的 AI-understanding test case。
+
+你可以拿同一個 repo 問：
+
+> 「請找出 second form 搜尋 golden tool 時，一個 golden tool 出現在 search results 但不能被選取的所有條件。不要只列前端 disabled condition，請一路追到後端資料來源。每一個條件附 code evidence，並區分直接證據與推論。」
+
+這比問：
+
+> 「請解釋這個系統 business logic。」
+
+好測一百倍。
+
+因為最後就算你不知道完整答案，你至少可以檢查：
+
+- 它找到 frontend disable logic 沒？
+- 找到 API 回傳欄位沒？
+- 找到 backend eligibility calculation 沒？
+- 找到資料庫/status condition 沒？
+- 找到 test 沒？
+- 有沒有把自己猜的東西標出來？
+
+---
+
+## 問題 2 更有意思：Search / Create 的 business state 被 lifecycle 綁死
+
+我理解你遇到的是：
+
+目前某些資訊的生命週期大概長這樣：
+
+```text
+Search
+  ↓
+只拿到部分資料
+  ↓
+Create form instance
+  ↓
+跑一堆 create logic
+  ↓
+計算 / fetch 更多資訊
+  ↓
+使用者終於看到真正重要的值
+```
+
+但產品需求其實是：
+
+```text
+Search
+  ↓
+使用者應該先看到足夠資訊
+  ↓
+判斷這是不是我要的 golden / configuration
+  ↓
+才 Create
+```
+
+也就是說，現在 code structure 把：
+
+**「計算 form 所需資訊」**
+
+跟
+
+**「真的建立 form instance」**
+
+耦合在一起了。
+
+所以你想把其中一部分：
+
+```text
+derive / fetch / calculate
+```
+
+從：
+
+```text
+create()
+```
+
+裡面精準抽出來，變成 create 前也可以呼叫。
+
+但問題是 create code 太臭，而且跟 search 的 data structure 又纏在一起，所以你很難知道：
+
+> 哪些 computation 是純 lookup / derivation？
+
+> 哪些真的有 side effect？
+
+> 哪些依賴只有 create 之後才存在的 ID / state？
+
+> 哪些值其實理論上 create 前就能算？
+
+**這就是一個非常漂亮的 legacy-code understanding problem。**
+
+甚至我覺得比第一題更適合你這次研究。
+
+---
+
+# 你現在其實不需要再找「抽象的 5 個問題」
+
+直接用你這兩個真實 case。
+
+而且每個 case 可以拆成幾個 investigation questions。
+
+### Case A — Golden eligibility
+
+問 AI：
+
+> 1. Golden search 的完整 flow 是什麼？
+> 2. 哪些條件決定 search result 是否 selectable？
+> 3. 這些條件分別來自 frontend、backend、DB 哪一層？
+> 4. 每一條 rule 的 evidence 在哪？
+> 5. 是否存在「會被 search 到，但不能 select」的 intentional business case？
+> 6. 如果要讓 UI 告訴 user「為什麼不能選」，最適合在哪一層 expose reason？
+
+最後這題甚至開始接近你的真正 engineering work。
+
+---
+
+### Case B — Pre-create information
+
+問：
+
+> 1. Create second form 時，哪些欄位是 request 帶進來的？
+> 2. 哪些是在 create 過程中 fetch 的？
+> 3. 哪些是 calculate / derive 出來的？
+> 4. 哪些 computation 有 side effect？
+> 5. 哪些 computation 其實不依賴 persisted form instance？
+> 6. 如果要讓使用者 create 前看到這些值，最小可以抽出的 service boundary 是什麼？
+> 7. Search DTO / create DTO 現在共享或耦合了哪些 structure？
+> 8. 哪些 tests 可以證明 refactor 前後 behavior 不變？
+
+這已經不是 generic「幫我讀 code」。
+
+這是在測 AI：
+
+> **能不能幫一個不熟 legacy domain 的工程師建立足以 refactor 的 mental model。**
+
+這非常有意義。
+
+---
+
+而且這也解決你剛才的困擾：
+
+> 「我自己也不知道正確 business logic，怎麼 benchmark？」
+
+你不需要知道所有答案。
+
+你可以評估它的 **investigation quality**：
+
+**它是不是有把整條 path trace 出來？**
+
+**是不是能把 fact 跟 inference 分開？**
+
+**是不是每個重要結論有 source evidence？**
+
+**是不是有找到原本你實際卡住的 coupling？**
+
+**它的回答有沒有幫你更快找到可以修改的 seam？**
+
+這些你自己就能判斷。
+
+---
+
+而且我現在甚至會建議你把「文件」實驗也綁在這兩題，不要再抽象測。
+
+例如假設你們有：
+
+> Golden/Second form spec  
+> A/B form 說明  
+> tool release workflow 文件
+
+那就拿 Case A 問兩次：
+
+**Claude + code**
+
+vs
+
+**Claude + code + 相關文件**
+
+看第二次是不是更容易回答：
+
+> 「為什麼這個 golden 出現在 list 裡卻不能選？」
+
+而不是只找到：
+
+```java
+if (!eligible) disabled = true;
+```
+
+如果文件真的有 business semantics，第二組應該會比較容易把：
+
+**implementation condition → business reason**
+
+接起來。
+
+如果文件過時，它也可能反而答錯。這也是很有價值的 finding。
+
+---
+
+所以我現在反而覺得你這週的 scope 突然清楚很多：
+
+### 不用五個案例，就這兩個
+
+**Case A：Golden selectable eligibility**
+
+代表：
+
+> business rule discovery
+
+**Case B：Search/Create coupling**
+
+代表：
+
+> lifecycle / architecture understanding + refactoring boundary discovery
+
+然後每個 case 跑：
+
+> Claude Code only  
+> Claude Code + relevant docs  
+> Understand Anything
+
+你最後主管看到的就不是一堆工具心得，而是：
+
+> **我拿兩個我實際工作上遇到、真的讓我卡住的 legacy-code 問題，測 AI 能不能降低理解與修改成本。**
+
+這個研究一下子就從「AI 玩具 survey」變成很實際的 engineering productivity experiment。
+
+而且你這兩個 case 選得其實很好：一個偏 **business rule**，一個偏 **technical coupling**。剛好可以看 AI 在兩種類型的問題上差多少。

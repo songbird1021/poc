@@ -1,0 +1,30 @@
+Repowise 現在是 **AGPL-3.0 + commercial dual license**。
+
+對你目前這種「拿公司內部 legacy repo 做 POC」的情境，官方明確寫的是：**individual、team、company 內部使用都可以免費用 AGPL 版本**。核心功能包含 graph、git analysis、docs、decision layer、MCP、multi-repo 等，也都在 open-source 版本裡。:chatgpt-content-reference{index="0"}
+
+但 AGPL 要注意一個點：如果你們**修改 Repowise 本身**，再把修改後的版本透過 network 提供給其他使用者，通常會觸發 AGPL 的 source disclosure 義務。Repowise 官方自己的說法也是「modify + offer over a network → publish those modifications under AGPL」。:chatgpt-content-reference{index="1"}
+
+所以可以粗略分成：
+
+| 用法 | License 狀況 |
+|---|---|
+| 你自己 local 裝來分析公司 repo | ✅ 官方說可免費 internal use |
+| 團隊內大家各自裝來用 | ✅ 官方說可 |
+| 公司內 self-host 原版 Repowise | ✅ 原則上可，但公司 legal 最好確認 AGPL policy |
+| 修改 Repowise source，再當內部服務提供 | ⚠️ AGPL 義務開始需要仔細確認 |
+| 把 Repowise 嵌進你們 proprietary internal developer platform | ⚠️ 官方建議 commercial license |
+| 嵌進你們賣給客戶的 closed-source 產品 | ❌ 通常應談 commercial license |
+
+特別值得注意的是，Repowise 官方 commercial 文件甚至把 **「embed Repowise intelligence in internal tooling / developer platforms without AGPL obligations」** 列為商業授權用途。:chatgpt-content-reference{index="2"}
+
+Commercial license 除了解除這些 AGPL 顧慮，也加了 SSO/SCIM、RBAC、audit、security/compliance、SLA、IP indemnification 等 enterprise layer。:chatgpt-content-reference{index="3"}
+
+所以如果你現在只是想：
+
+> 「我在自己的工作機器上裝 Repowise，拿公司 repo 跑一次 POC，看效果如何」
+
+**就它官方 license 說明來看，是允許的。** :chatgpt-content-reference{index="4"}
+
+但因為是 **AGPL 而不是 MIT/Apache-2.0**，如果你們公司本身 OSS policy 比較嚴格，我還是會在真正 team-wide deployment 前丟給 legal/security 看一下。尤其不要看到「free for companies internally」就直接把它改成公司共用平台；那時候 licensing boundary 會比較值得確認。
+
+另外，從你這次 1-1 的角度，這反而是一個小缺點：**UA 是 MIT，而 Repowise 是 AGPL**。所以 Repowise 即使 POC 效果比較好，真正導入公司的 friction 也會比 permissive-license 工具高一點。

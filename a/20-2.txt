@@ -1,0 +1,1188 @@
+可以。你接下來一週不要再開新的研究方向。你的目標不是找到「最強 AI code understanding 工具」，而是做到：
+
+> **用兩個真實 legacy case，確認 Claude Code、既有文件、Understand Anything 各自在哪裡有幫助，最後形成一個站得住腳的 1-1 update。**
+
+你明天 2026/09/30 到公司後，照下面做就好。
+
+---
+
+# 這週唯一研究問題
+
+先把這句放在你所有筆記最上面：
+
+> **當工程師接手不熟悉的 legacy domain 時，除了直接用 Claude Code 讀 code，加入既有文件或 systematic codebase-understanding tool，能不能明顯降低建立 mental model 的成本？**
+
+不是：
+
+- 哪個 AI 最強？
+- 哪個 graph 最漂亮？
+- 哪個 token 最省？
+- 能不能 100% 理解 business logic？
+- Repowise vs Graphify vs UA 誰贏？
+
+全部先不要。
+
+---
+
+# 這週你最後要交出的東西只有 4 份
+
+建一個資料夾：
+
+```text
+legacy-ai-understanding-poc/
+
+00_scope.md
+01_case_golden_selection.md
+02_case_search_create.md
+03_experiment_results.md
+04_1on1_notes.md
+```
+
+一週結束後，只要這五個檔案有內容，你就完成了。
+
+---
+
+# 00_scope.md：明天第一個寫
+
+直接貼下面這個框架。
+
+```markdown
+# Legacy Code Understanding POC
+
+## Problem
+
+When taking over unfamiliar legacy code, source code usually allows me
+to understand operational behavior, but domain meaning / rationale is
+harder to recover.
+
+Claude Code already helps a lot with code exploration.
+
+I want to understand whether:
+1. existing project documents improve AI understanding;
+2. a systematic code-understanding tool such as Understand Anything
+   provides additional value beyond direct Claude Code usage.
+
+## Research question
+
+Can richer/systematic context reduce the effort required to build a
+usable mental model of an unfamiliar legacy subsystem?
+
+## What I am NOT evaluating
+
+- Best AI coding agent
+- Token reduction
+- Code generation quality
+- Whether AI can replace domain experts
+- Complete correctness of the whole system
+- Every feature of Understand Anything
+
+## Cases
+
+Case A: Golden tool selection / eligibility
+Case B: Search/Create coupling and pre-create information
+
+## Setups
+
+A. Claude Code + source code only
+B. Claude Code + source code + existing documents
+C. Understand Anything
+
+## Evaluation
+
+- Can it find the relevant implementation?
+- Can it reconstruct the end-to-end flow?
+- Can it explain domain meaning instead of only implementation?
+- Does it distinguish evidence from inference?
+- Does it surface edge cases / hidden dependencies?
+- Can I trace important claims back to evidence?
+- Does it reduce my investigation effort?
+```
+
+這個檔案寫完後，**本週不准再修改 scope**，除非你發現實驗根本跑不下去。
+
+---
+
+# 你的兩個 Case
+
+## Case A — Golden selectable / eligibility
+
+你目前知道的背景先寫，不用追求完美。
+
+`01_case_golden_selection.md`
+
+```markdown
+# Case A — Golden Selection
+
+## Background I currently understand
+
+System is used for semiconductor equipment qualification/release.
+
+Tools:
+- Process
+- Metrology
+
+Forms:
+- Golden
+- Second
+- A form: more related to equipment capability
+- B form: more related to process capability
+
+Conceptually:
+- Golden tool = benchmark/reference tool
+- Second tool is compared with a Golden tool
+- Second tool can be released only when its performance is sufficiently
+  close to the Golden reference
+
+## Actual problem
+
+When creating a Second Form, the user first searches for/selects a
+Golden tool.
+
+Sometimes:
+- search returns a Golden tool;
+- the Golden appears in the UI;
+- but the user cannot select it.
+
+This causes confusion and users sometimes need to report the issue.
+
+## Things I want to understand
+
+1. What is the complete search flow?
+2. Why can a Golden appear in search results but still be unselectable?
+3. What conditions determine selectability?
+4. Where are those conditions calculated?
+5. Which conditions are frontend behavior vs backend business rules?
+6. Are there intentional business reasons for returning an
+   unselectable Golden?
+7. Is there already information available that could explain to the
+   user why the Golden is disabled?
+8. Which parts are directly proven by code, and which parts are inferred?
+```
+
+### 很重要
+
+最後加：
+
+```markdown
+## What I already know from my actual work
+
+Files / modules I remember touching:
+- ...
+
+Important classes/functions:
+- ...
+
+Things I am reasonably confident about:
+- ...
+
+Things I still do not understand:
+- ...
+```
+
+不要為了完整再研究兩小時。
+
+**只寫你現在記得的。**
+
+這些會成為你後面判斷 AI 有沒有找到重點的弱 ground truth。
+
+---
+
+# Case B — Search/Create coupling
+
+`02_case_search_create.md`
+
+```markdown
+# Case B — Search/Create Coupling
+
+## Actual problem
+
+Some information that users should ideally see before creating a form
+is only calculated/fetched during the create flow.
+
+However:
+- search and create data structures are highly coupled;
+- some values are calculated during create;
+- some values are fetched only during create;
+- create logic contains many responsibilities;
+- it is difficult to identify which computation can safely be moved or
+  exposed before the actual form instance is created.
+
+## Desired behavior
+
+Conceptually:
+
+Search
+→ show enough information to user
+→ user decides
+→ create form
+
+Current behavior is closer to:
+
+Search
+→ incomplete information
+→ create
+→ fetch / derive / calculate
+→ important information becomes available
+
+## Things I want to understand
+
+1. What data exists at search time?
+2. What data is introduced during create?
+3. Which values are fetched externally?
+4. Which values are derived/calculated?
+5. Which steps have side effects?
+6. Which calculations require a persisted form instance?
+7. Which calculations could theoretically happen before persistence?
+8. How are search DTO/model and create DTO/model coupled?
+9. What is the smallest reasonable boundary that could be extracted?
+10. Which tests currently protect this behavior?
+
+## What I already know from my actual work
+
+Files/modules I touched:
+- ...
+
+Important functions/classes:
+- ...
+
+Things I already discovered:
+- ...
+
+Things that were particularly difficult:
+- ...
+```
+
+---
+
+# 明天 Day 1：只準備，不追新工具
+
+明天你的總目標：
+
+> **把兩個 case 固定下來，找出相關文件，然後完成 Claude Code baseline。**
+
+## Block 1 — 30 分鐘：建立研究資料夾
+
+完成：
+
+- `00_scope.md`
+- `01_case_golden_selection.md`
+- `02_case_search_create.md`
+
+時間到了就停。
+
+不要因為：
+
+> 「其實 Golden / Second 我還有一個概念沒搞懂……」
+
+又開始 trace code。
+
+寫：
+
+```text
+UNKNOWN
+```
+
+就好。
+
+---
+
+# Block 2 — 30～45 分鐘：找現有文件
+
+你的目標不是「整理所有公司文件」。
+
+只找跟這兩個 case 直接有關的。
+
+例如：
+
+```text
+Golden / Second Form spec
+A Form / B Form 說明
+Tool release workflow
+Search behavior spec
+Form creation design
+Architecture doc
+Project README
+Table/schema documentation
+過去需求文件
+```
+
+最後建立：
+
+```markdown
+# Available docs
+
+## Likely relevant
+
+1. xxx
+   - What it seems to contain:
+   - Last update if known:
+   - Probably stale? yes/no/unknown
+
+2. xxx
+   ...
+
+## Not included
+
+- xxx — seems unrelated
+```
+
+### 最多選 3～5 份
+
+不要塞 20 份。
+
+你測的是：
+
+> **少量 relevant docs 有沒有幫助。**
+
+不是：
+
+> RAG 整個公司 knowledge base。
+
+---
+
+# Block 3 — Claude Code baseline：Case A
+
+開一個**新的 Claude Code session**。
+
+明確告訴它：
+
+> 只用 source code / tests / config。不要使用 project design docs 作為 business explanation。
+
+然後用下面這個 prompt。
+
+```text
+I am trying to build a mental model of the Golden selection flow in this
+legacy system.
+
+Please investigate the codebase and answer the following:
+
+1. Trace the end-to-end flow for searching Golden tools when creating
+   a Second Form.
+2. Identify every condition you can find that can cause a Golden tool
+   to appear in search results but not be selectable.
+3. For each condition, identify:
+   - where it is computed;
+   - whether it is frontend or backend;
+   - what data it depends on;
+   - where the final selectable/disabled decision is made.
+4. Identify relevant tests.
+5. Explain what business meaning you think each condition represents.
+
+Important:
+- Cite file/function evidence for important claims.
+- Separate DIRECT CODE EVIDENCE from INFERENCE.
+- Do not invent business rationale if the code does not establish it.
+- Explicitly list remaining unknowns.
+- At the end, give me a compact end-to-end mental model.
+```
+
+### 不要一直幫它
+
+第一輪先看它自己能走多遠。
+
+如果卡住，最多追問兩次。
+
+例如：
+
+```text
+You identified X, but I think there may be another layer between
+frontend search results and backend eligibility. Trace this further.
+```
+
+或：
+
+```text
+Now focus specifically on how selectable/disabled state is represented
+in the returned data structure.
+```
+
+---
+
+# Baseline 完成立刻記錄，不要靠記憶
+
+在 `03_experiment_results.md` 建：
+
+```markdown
+# Experiment Results
+
+## Case A — Claude Code only
+
+### Time
+Start:
+End:
+Approx investigation time:
+
+### What it found well
+-
+
+### What it missed
+-
+
+### Things I did not know before
+-
+
+### Things it claimed as fact but were actually inference
+-
+
+### Useful evidence surfaced
+-
+
+### Did it find the code I remember being important?
+Yes / Partially / No
+
+### After reading the answer, can I explain the flow myself?
+1 2 3 4 5
+
+### Did I still need to manually open/trace a lot of source?
+1 2 3 4 5
+5 = a lot
+
+### Did it improve my understanding of WHY the system behaves this way?
+1 2 3 4 5
+
+### Overall usefulness
+1 2 3 4 5
+
+### One-sentence takeaway
+...
+```
+
+不要追求科學。
+
+**你是在建立可比較 observation。**
+
+---
+
+# Block 4 — Claude Code baseline：Case B
+
+重新開 fresh session。
+
+Prompt：
+
+```text
+I am investigating a legacy Search/Create flow.
+
+The product problem is that some information users should ideally see
+before creating a form is currently only available during the Create
+flow.
+
+Please reconstruct the implementation.
+
+Answer:
+
+1. What information exists at Search time?
+2. What additional information is fetched, derived, or calculated
+   during Create?
+3. Categorize Create operations into:
+   - pure lookup/read;
+   - deterministic calculation;
+   - state-dependent calculation;
+   - persistence;
+   - side effect/external operation.
+4. Which values genuinely require a persisted form instance?
+5. Which values appear technically possible to calculate before Create?
+6. What data structures are shared/coupled between Search and Create?
+7. What dependencies make extracting the pre-create calculations hard?
+8. Identify existing tests that constrain this behavior.
+9. Suggest possible seams/boundaries for refactoring, but keep this
+   separate from your description of current behavior.
+
+Important:
+- Cite code evidence.
+- Label assumptions/inferences explicitly.
+- Do not treat a plausible architecture explanation as fact.
+- Explicitly list anything you cannot determine from code.
+```
+
+照樣填紀錄。
+
+---
+
+# 明天結束前，你只需要有這些
+
+Checklist：
+
+- [ ] Scope 固定
+- [ ] Case A 寫完
+- [ ] Case B 寫完
+- [ ] 3～5 份 relevant docs 找到
+- [ ] Claude baseline Case A 跑完
+- [ ] Claude baseline Case B 跑完
+- [ ] 每個 case 有 observation
+
+做到這裡，明天就是成功。
+
+**明天不碰 Graphify。  
+不碰 Repowise。  
+不搜尋「best code understanding tool」。**
+
+---
+
+# Day 2 — Claude Code + 文件
+
+這一天只回答：
+
+> **文件到底有沒有補到 code 缺的 business context？**
+
+---
+
+## Case A + docs
+
+開新的 Claude session。
+
+把 relevant docs 明確加入 context。
+
+Prompt：
+
+```text
+I want you to investigate the Golden selection flow using BOTH the
+current source code and the provided project documents.
+
+The documents may be stale.
+
+Please answer:
+
+1. What determines whether a Golden tool is selectable for a Second Form?
+2. Why can a Golden appear in search results but remain unselectable?
+3. What business meaning does each eligibility condition appear to have?
+4. Which parts are clearly established by current code?
+5. Which parts come from documentation?
+6. Where do code and documentation agree?
+7. Where do they conflict?
+8. Are there statements in the documents that appear stale based on the
+   current implementation?
+9. What important WHY/rationale questions are still unanswered even
+   after reading both sources?
+
+For every important claim, label it:
+
+[CODE]
+[TEST]
+[DOC]
+[INFERENCE]
+
+If code and documentation conflict, do not silently choose one.
+Explicitly show the conflict.
+
+Finish with:
+- current operational behavior;
+- inferred business meaning;
+- unresolved rationale.
+```
+
+這個 prompt 非常重要。
+
+你真正要測的是：
+
+> docs 有沒有把 WHAT → WHY 接起來。
+
+---
+
+## Case B + docs
+
+```text
+Using both the current codebase and the provided project documents,
+reconstruct the Search/Create lifecycle.
+
+I specifically want to know whether information currently calculated
+during Create conceptually belongs to:
+- pre-create preview/search;
+- actual form creation;
+- post-create processing.
+
+Please identify:
+
+1. Current implementation behavior.
+2. Intended behavior described in documents.
+3. Any mismatch between implementation and documentation.
+4. Which data/calculations are semantically pre-create information.
+5. Which operations genuinely belong to Create.
+6. Any historical/design rationale in the documents that explains the
+   current coupling.
+7. Remaining unknowns.
+
+Label every significant conclusion:
+[CODE]
+[TEST]
+[DOC]
+[INFERENCE]
+
+Do not assume documents are current.
+```
+
+---
+
+# Day 2 最重要的觀察
+
+不要只問：
+
+> 回答有沒有比較好？
+
+你要問：
+
+### A. 文件補的是哪一層？
+
+例如：
+
+```text
+Code:
+flag X = false when status != RELEASED
+
+Docs:
+Only qualified Golden references may be used for Second qualification
+
+=> docs actually adds semantic meaning
+```
+
+這就是 valuable。
+
+反過來：
+
+```text
+Code:
+complicated rule
+
+Docs:
+same implementation details rewritten in English
+
+=> docs adds very little
+```
+
+也很 valuable。
+
+---
+
+# Day 2 結束做一張小表
+
+```markdown
+| Observation | Code only | Code + docs |
+|---|---|---|
+| Finds implementation | | |
+| Reconstructs flow | | |
+| Explains terminology | | |
+| Explains business meaning | | |
+| Explains rationale/why | | |
+| Finds edge cases | | |
+| Shows evidence | | |
+| Creates confusion from stale info | | |
+| Investigation effort | | |
+```
+
+填：
+
+`Better / Same / Worse`
+
+即可。
+
+---
+
+# Day 3 — Understand Anything
+
+這天你才回去補 UA。
+
+你的任務不是：
+
+> 把 UA 所有 feature 玩完。
+
+而是：
+
+> **公平回答：UA 相較 manual Claude workflow，有沒有提供 systematic value？**
+
+只做兩個 case。
+
+---
+
+## UA 要觀察四件事
+
+### 1. Context discovery
+
+它有沒有主動幫你找到：
+
+- 你自己 Claude session 沒想到看的 files？
+- 跨 module relationship？
+- hidden dependency？
+- relevant concept？
+
+---
+
+### 2. Mental model
+
+它產出的 domain / flow / relationship 是否讓你：
+
+> 更快知道這整坨系統「大概怎麼組成」。
+
+不是問圖好不好看。
+
+---
+
+### 3. Business semantics
+
+它有沒有真的產出：
+
+> 這個 concept 在 domain 上代表什麼？
+
+還是只是：
+
+> FooService calls BarRepository。
+
+---
+
+### 4. Reusability
+
+這是最容易被忽略的。
+
+假設你今天理解完 Golden selection：
+
+> 明天下次再回來，UA 留下來的東西真的讓你少做 investigation 嗎？
+
+還是：
+
+> 我最後還是重新叫 Claude trace 一次。
+
+---
+
+# UA Case A 紀錄模板
+
+```markdown
+## Case A — Understand Anything
+
+### What useful structure did UA surface?
+-
+
+### Did it reveal files/relationships Claude missed?
+-
+
+### Did its business/domain description contain information beyond a
+plain reading of code?
+-
+
+### Did it explain why a Golden can appear but not be selectable?
+-
+
+### Which explanations were:
+- clearly supported:
+- plausible inference:
+- unclear:
+
+### Did its persistent graph/model make investigation easier?
+-
+
+### Did I still need Claude Code afterwards?
+-
+
+### If yes, what did I need Claude for?
+-
+
+### Compared with Claude + docs:
+Better / Same / Worse
+
+### Why?
+-
+```
+
+Case B 同樣。
+
+---
+
+# Day 3 有一條停止規則
+
+如果你花了 **90 分鐘**還是在：
+
+> 調 UA  
+> 看 graph  
+> 搞 setup  
+> 研究 commands
+
+停。
+
+記錄：
+
+> Setup / interpretation overhead itself was significant.
+
+這本身就是結果。
+
+不要因為：
+
+> 「搞不好再研究五小時就會變很好用」
+
+把整週丟進去。
+
+---
+
+# Day 4 — 整理結果，不再做實驗
+
+這天開始，你不准再跑新工具。
+
+建立最終比較表。
+
+---
+
+# 最終比較表
+
+```markdown
+| Dimension | Claude Code | Claude + Docs | Understand Anything |
+|---|---:|---:|---:|
+| Find relevant code | | | |
+| Trace end-to-end flow | | | |
+| Surface hidden dependency | | | |
+| Explain terminology | | | |
+| Explain business meaning | | | |
+| Explain historical/design why | | | |
+| Distinguish fact/inference | | | |
+| Evidence traceability | | | |
+| Handle stale information | | | |
+| Reduce manual exploration | | | |
+| Reusable next time | | | |
+| Setup/maintenance overhead | | | |
+```
+
+不用給假精確的 8.7/10。
+
+用：
+
+- Strong
+- Medium
+- Weak
+- Unknown
+
+就好。
+
+---
+
+# 然後強迫自己寫這 5 句
+
+這是整份研究真正的產出。
+
+## 1. Claude Code 最擅長什麼？
+
+格式：
+
+> Claude Code is already effective for ________, especially ________.
+
+---
+
+## 2. Claude Code 的主要限制是什麼？
+
+> Its main limitation in my use case is ________.
+
+---
+
+## 3. 文件實際補了什麼？
+
+不要先假設它有效。
+
+可能是：
+
+> Existing documents improved terminology/domain context but did not
+> consistently explain design rationale.
+
+也可能是：
+
+> Documents significantly improved understanding of business intent.
+
+也可能是：
+
+> Stale documentation sometimes created more ambiguity than value.
+
+三種都可以。
+
+---
+
+## 4. UA 實際多提供什麼？
+
+可能：
+
+> UA provides a more systematic overview and reusable structure, but its
+> incremental value for my concrete investigation was limited.
+
+或：
+
+> UA helped me discover relationships that were difficult to surface
+> through ad-hoc Claude exploration.
+
+讓結果決定。
+
+---
+
+## 5. 下一步值不值得？
+
+只有三種答案：
+
+### A — 不值得繼續
+
+> Claude Code already covers most of the practical value; another layer
+> does not currently justify the overhead.
+
+### B — Context 值得，但 tool 不一定
+
+> Richer context clearly helps, but direct Claude + selected docs may
+> already be sufficient.
+
+### C — systematic layer 值得
+
+> Richer context helps, and manually assembling/maintaining it is
+> expensive enough that a systematic knowledge layer deserves further
+> evaluation.
+
+**你只需要選一個。**
+
+---
+
+# Day 5 — 準備 1-1
+
+你的 1-1 不要變成 20 分鐘技術報告。
+
+準備三個版本：
+
+---
+
+# 版本 1：30 秒
+
+如果主管只想聽 update：
+
+> 最近接 legacy system 的時候，我有研究怎麼利用 AI 降低理解既有 domain 的成本。Claude Code 對 trace code 已經很有效，我另外試了 Understand Anything，也比較了只看 code 跟加入現有文件的差異。目前最大的發現是，真正難的不是找出系統怎麼運作，而是補足 domain meaning 和設計脈絡。我現在正在用兩個實際 case 收斂，看 richer context 或 systematic tool 到底有沒有足夠增益。
+
+---
+
+# 版本 2：2 分鐘
+
+結構永遠是：
+
+### Problem
+
+> 接手 legacy code 時，implementation 大多可以從 code trace 出來，但 domain meaning / rationale 比較難。
+
+### What I tried
+
+> Claude Code → Understand Anything → code + existing docs。
+
+### Finding
+
+講你實驗結果。
+
+### Learning
+
+> 目前看起來 XXX。
+
+### Next
+
+> 所以下一步我會 XXX / 暫時不繼續投入 XXX。
+
+---
+
+# 版本 3：主管有興趣才展開
+
+拿你的兩個真實案例。
+
+不要講 generic AI。
+
+直接：
+
+> 例如 Second Form 選 Golden 時，有些 Golden search 得到卻不能選。Claude 很容易幫我追出 implementation，但是「為什麼這個 rule 在 domain 上合理」比較難。這類問題就是我拿來測的 case。
+
+主管會立刻知道你不是在玩玩具。
+
+---
+
+# 你絕對不要在 1-1 說的話
+
+不要說：
+
+> 「Understand Anything 不行。」
+
+說：
+
+> 「以目前兩個實際 case，我還沒有看到足夠明顯的 incremental value。」
+
+不要說：
+
+> 「knowledge graph 沒用。」
+
+說：
+
+> 「systematic representation 有價值，但我真正需要驗證的是它有沒有降低 investigation cost。」
+
+不要說：
+
+> 「AI 不懂 business logic。」
+
+說：
+
+> 「從 code inference business semantics 有資訊上限，尤其 design rationale 不一定存在 source 裡。」
+
+不要說：
+
+> 「我研究了很多工具。」
+
+說：
+
+> 「我刻意把 scope 收斂成兩個實際 engineering case。」
+
+---
+
+# 如果實驗結果很亂怎麼辦
+
+這點你一定要先知道。
+
+假設最後：
+
+- Case A 是 Claude + docs 最好；
+- Case B 是 Claude only 最實用；
+- UA 某些地方很好某些地方很雞肋。
+
+**這不是失敗。**
+
+你的 finding 可以是：
+
+> There is no single best workflow. The value depends on the question:
+> code-centric questions are already handled well by Claude Code, while
+> domain-context questions benefit more from external documentation.
+
+這其實是很好的結果。
+
+---
+
+# 如果文件很爛怎麼辦
+
+照樣記錄。
+
+例如：
+
+```markdown
+Finding:
+The existing document helped explain terminology but was stale regarding
+current eligibility behavior.
+
+Implication:
+Documentation is potentially valuable context, but treating it as
+authoritative would be risky.
+```
+
+非常有價值。
+
+---
+
+# 如果 UA 突然變得很好用怎麼辦
+
+也不要尷尬。
+
+你不是在證明它差。
+
+你是在驗證 hypothesis。
+
+如果結果是：
+
+> UA 能讓你很快看到 Golden selection 的完整 dependency，而且你真的少 trace 40 分鐘，
+
+那就寫：
+
+> My initial impression underestimated its value; when evaluated against
+> a concrete flow rather than by browsing the graph, it was more useful.
+
+這反而讓研究可信。
+
+---
+
+# 如果 UA 還是「有圖但沒感覺」
+
+不要停在「沒感覺」。
+
+具體化：
+
+> 它幫我建立 overview，但沒有讓我更快回答 Golden selectable 的原因。
+
+或：
+
+> 它揭示了 dependencies，但對 Search/Create 的 refactoring boundary 沒有比 Claude Code 提供更多 actionable information。
+
+這樣才是結果。
+
+---
+
+# 這週嚴格禁止事項
+
+看到自己開始做以下事情就停：
+
+- 「我再看看 Repowise。」
+- 「Graphify 好像支援 PDF，我玩一下。」
+- 「我要不要自己做 RAG？」
+- 「要不要 benchmark token？」
+- 「是不是應該研究 MCP？」
+- 「我再找十篇 Reddit。」
+- 「也許 UA 有另一個 command。」
+- 「我應該把整個 system domain 都弄懂再測。」
+
+全部不做。
+
+把它們丟進：
+
+```markdown
+## Future questions
+
+- Repowise / history-aware tools
+- Unified code + docs graph
+- Automatic incremental updates
+- Team-wide knowledge persistence
+```
+
+然後回到實驗。
+
+---
+
+# 你每天收工前只做一件事
+
+寫三行：
+
+```text
+今天我確認了：
+今天我仍然不知道：
+明天唯一要回答的是：
+```
+
+例如：
+
+```text
+今天我確認了：
+Claude 可以完整 trace Golden selectable implementation。
+
+今天我仍然不知道：
+現有文件是否真的能補上 selectable rule 的 business meaning。
+
+明天唯一要回答的是：
+加入文件後，回答是否變得更完整而且不引入 stale confusion。
+```
+
+這會防止你晚上回家又開始覺得：
+
+> 「我是不是什麼都沒做？」
+
+---
+
+# 最後，你這週真正的 Done Definition
+
+到了 1-1 前，只要你能回答下面六題，就不要再做了：
+
+1. **Claude Code alone 對這兩個 case 已經能做到什麼？**
+2. **它做不到什麼？**
+3. **加入文件有沒有明顯改善？改善在哪？**
+4. **文件過時有沒有造成問題？**
+5. **UA 有沒有提供 Claude + docs 沒有的 systematic value？**
+6. **你認為值得繼續投資這個方向嗎？如果值得，下一步驗證什麼？**
+
+你不需要：
+
+> 找到市場最佳工具。
+
+不需要：
+
+> 完整理解整套半導體驗機 domain。
+
+也不需要：
+
+> 證明 AI 對或錯。
+
+你只需要有足夠 evidence，跟主管說：
+
+> **「我拿真實工作問題測過，目前我的判斷是 X，而不是只憑 demo 或感覺。」**
+
+這樣就夠穩了。

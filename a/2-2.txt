@@ -1,0 +1,54 @@
+有用，但不是「把整個 legacy codebase 變成一張知識圖」這件事最有用。
+
+你現在試 Understand Anything 得到「有圖，但看不太出什麼」，我反而覺得這是一個很正常、而且可以跟主管講得很有價值的實驗結果。這不是你沒用對，而是 **code graph ≠ business understanding**。
+
+目前我會把真正有用的東西收斂成三類：
+
+1. **針對一個具體問題找 code**
+   例如「這個 status 到底在哪些地方會被改掉？」、「這個 API 最後寫了哪些 table？」。這種情況，Claude Code / Codex 這類 agent 自己 search、追 call chain、讀檔案，通常比先看一張全域 graph 實用很多。
+
+2. **Impact analysis / dependency tracing**
+   「我改這個 class / schema / enum，誰會受影響？」這是 static graph 真正比較有優勢的地方。因為它是 bounded question，不要求工具「理解公司」。
+
+3. **把 code + git history + docs 一起查**
+   Legacy code 最有價值的問題往往不是「A call B」，而是「為什麼這邊要這樣寫」。這時 git blame、commit history、PR、ADR、ticket 往往比 graph 有價值很多。
+
+所以，如果你主管問：
+
+> 「那這種 AI understanding tool 到底有沒有用？」
+
+我會這樣回答他：
+
+我這週有實際試 Understand Anything。
+
+目前我的結論是，它對 codebase 做 structure visualization 是做得到的，也可以產生 dependency graph、domain / flow 之類的資訊；但以我們真正想解決的問題——理解 legacy system 的 business logic——我目前沒有感受到很明顯的提升。
+
+最大的問題是它可以告訴我「哪些東西連在一起」，但不太能告訴我「為什麼業務上要這樣運作」。最後如果我要真的確認一個流程，我還是得回去讀 source code。
+
+所以我現在會把這類工具的價值重新定位：它比較適合 navigation、dependency tracing、impact analysis，而不是自動產生一份可信的 business knowledge model。
+
+反而我覺得下一步比較值得測的是：不要要求 AI 理解整個 codebase，而是給它很具體的問題，例如「這個狀態有哪些入口會改」、「改這個 schema 會影響哪些流程」、「這個 exception 為什麼存在」，然後比較原生 coding agent、code graph、git history 等方法，哪個真的能更快得到正確答案。
+
+所以目前不是我認為這個方向完全沒用，而是「全域 knowledge graph」看起來不是最有價值的切入點；比較 promising 的可能是針對特定 engineering question 做 context retrieval 和 impact analysis。
+
+我甚至會再往前走一步：**你下一輪不要再測「它能不能理解整個 repo」了。** 那個問題太模糊，而且非常容易被漂亮 demo 騙。
+
+直接拿你們 codebase 裡 5 個「你自己以前真的花過一兩個小時追」的問題來測。例如：
+
+- 某個欄位到底有哪些地方會寫入？
+- 某個 weird if condition 為什麼存在？
+- 某個 customer action 會經過哪些 service / queue / batch？
+- 改某個 enum 會炸哪些地方？
+- 某個 production bug，agent 能不能自己追到 root cause？
+
+然後測：
+
+**Claude Code / Codex 原生** vs **+ graph/context tool**。
+
+如果 graph tool 沒讓「找到正確答案所需時間」明顯下降，那你就已經得到一個非常實際的結論：**目前不值得導入。**
+
+而且這個結論其實比「我找到一個很酷的新工具」更適合跟主管 1-1 報告，因為你的訊息會變成：
+
+> 我實際驗證過這波 AI code understanding 工具，目前 graph 本身價值有限；真正值得投資的是 targeted code investigation / impact analysis。我下一步會用真實 legacy 問題做 benchmark，而不是看 demo。
+
+這樣聽起來就不是「我玩了一個東西結果不好用」，而是你已經把這個市場的 **signal 跟 noise 分開了**。

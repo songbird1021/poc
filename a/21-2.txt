@@ -1,0 +1,423 @@
+可以。我會建議控制在 **6 頁主投影片 + 1 頁 appendix**。1-1 不要做成正式研究簡報，重點是讓主管快速理解：
+
+> **Problem → What changed with Claude → What I tested → What I learned → What I’ll do next**
+
+下面數字我先幫你放一組「合理的假資料」，全部用 **[placeholder]** 標起來，你做完實驗直接換掉。
+
+---
+
+# Slide 1 — The Problem I Was Trying to Solve
+
+### English slide content
+
+**Title**  
+**From Reading Legacy Code to Understanding the Domain**
+
+**Content**
+
+**What I can usually recover from code**
+- Execution flow
+- Data transformations
+- Conditions and dependencies
+- Where values are calculated or persisted
+
+**What is harder to recover**
+- What a table / field represents in the business domain
+- Why a comparison or eligibility rule exists
+- Why the system was designed this way
+- Whether behavior is intentional or historical legacy
+
+**Example from my current work**
+> I can trace *how* Golden / Second Form validation works,  
+> but the *why* behind some rules is much less explicit.
+
+**Bottom takeaway**
+
+> **The bottleneck is not always code comprehension — it is building a reliable domain mental model.**
+
+### 中文講稿
+
+> 我最近接手這塊 legacy system 之後，慢慢發現我遇到的問題其實可以分成兩層。
+>
+> 第一層是「程式到底怎麼跑」。這部分其實 code 很明確，例如資料從哪裡來、經過哪些 condition、什麼時候寫 DB、哪些值是 calculate 出來的。只要花時間 trace，大部分都可以知道。
+>
+> 但第二層比較難，就是這些東西在 domain 上到底代表什麼。
+>
+> 例如某張 table 為什麼需要存在、為什麼 Golden 跟 Second 要用這些條件比、某個 eligibility rule 背後到底在保護什麼。
+>
+> 所以我後來覺得，我真正想解的不是單純「看懂 code」，而是怎麼比較有效率地建立一個可信的 domain mental model。
+
+---
+
+# Slide 2 — Claude Code Solved Part of the Problem
+
+### English slide content
+
+**Title**  
+**Claude Code Significantly Reduced Code Exploration Cost**
+
+**Before**
+- Manually search for entry points
+- Trace calls across services
+- Inspect DTOs / DB access / tests
+- Build the flow mentally
+- Ask senior engineers when stuck
+
+**With Claude Code**
+- Faster code navigation
+- Faster call-flow reconstruction
+- Easier cross-file investigation
+- Good at answering focused implementation questions
+
+**But the workflow is still mostly ad hoc**
+- I need to know what questions to ask
+- Findings are often session-specific
+- Context has to be assembled manually
+- Domain rationale is still often inferred rather than known
+
+**Key question**
+
+> **Can we make this understanding more systematic and reusable?**
+
+### 中文講稿
+
+> Claude Code 導入之後，第一層其實改善很多。
+>
+> 以前我要自己找 entry point、一路追 service、DTO、DB、test，現在很多事情 Claude 可以先幫我整理出候選路徑。
+>
+> 所以我覺得它對 code exploration 是非常有用的。
+>
+> 但是用了一陣子之後，我發現 workflow 還是很 ad hoc。
+>
+> 我還是要自己知道該問什麼。今天問完一個問題，得到的理解很多時候也留在這一次 session 裡。
+>
+> 而且 Claude 很容易從 code 推一個合理解釋，但這個解釋到底是 code 可以證明的，還是它根據結構推測的，有時候需要自己再確認。
+>
+> 所以我才開始想，有沒有辦法把這件事情做得更 systematic。
+
+---
+
+# Slide 3 — My Initial Hypothesis
+
+### English slide content
+
+**Title**  
+**Hypothesis: A Systematic Codebase Understanding Layer Could Help**
+
+**What I was looking for**
+- Automatically analyze the codebase
+- Build architectural / domain / flow representations
+- Preserve understanding across sessions
+- Reduce repeated exploration
+- Update as the codebase evolves
+
+**Tool explored**
+### Understand Anything
+- Static code analysis
+- LLM-based enrichment
+- Domain / flow extraction
+- Persistent knowledge representation
+- Incremental analysis
+
+**Initial expectation**
+
+> Instead of repeatedly asking an LLM isolated questions,  
+> could a pre-built understanding of the system provide better context?
+
+### 中文講稿
+
+> 所以我原本的 hypothesis 是，如果每次都直接問 Claude，等於每次都是局部探索。
+>
+> 那是不是可以在 Claude 上面多一層，把 codebase 先系統化分析，整理 architecture、domain、flow，再把結果保存起來。
+>
+> 這也是我為什麼開始試 Understand Anything。
+>
+> 它並不是單純畫 graph，它其實有 static analysis，再加 LLM enrichment，也會嘗試整理 domain 和 business flow。
+>
+> 我原本期待的是：如果這些 context 可以預先建立好，那我之後理解系統是不是會比每次從零問 Claude 更有效率。
+
+---
+
+# Slide 4 — How I Evaluated It
+
+### English slide content
+
+**Title**  
+**Evaluation Using Real Legacy-Code Cases**
+
+**Case A — Golden Tool Selection**
+> Why can a Golden tool appear in search results but not be selectable?
+
+Evaluate whether AI can identify:
+- End-to-end selection flow
+- Eligibility conditions
+- Frontend vs backend responsibility
+- Evidence for each rule
+- Business meaning behind the rule
+
+**Case B — Search / Create Coupling**
+> Which values currently calculated during Create could be available before the form is created?
+
+Evaluate whether AI can identify:
+- Search-time vs create-time data
+- Fetch / calculation / persistence / side effects
+- Coupled data structures
+- Possible refactoring boundaries
+- Hidden dependencies
+
+**Comparison**
+
+| Setup | Purpose |
+|---|---|
+| Claude Code + source | Baseline |
+| Claude Code + source + existing docs | Value of richer context |
+| Understand Anything | Value of systematic context |
+
+### 中文講稿
+
+> 我後來沒有再用很抽象的問題，例如「請解釋整個系統」。
+>
+> 我直接拿我最近真的遇到的兩個 case。
+>
+> 第一個是 Golden selection。使用者 search 之後，有些 Golden 出現在 list 裡，但是不能選。我想知道 AI 能不能把完整 eligibility flow 找出來，而且區分哪些是真的 code evidence、哪些只是推論。
+>
+> 第二個是 Search/Create coupling。有些 user 在 create 前應該看到的資訊，目前卻只有進到 create flow 之後才會被 fetch 或 calculate。我想知道 AI 能不能幫我把哪些是 lookup、哪些是 calculation、哪些真的依賴 persistence 拆出來。
+>
+> 然後我用三種 setup 比：Claude Code only、Claude 加現有文件，以及 Understand Anything。
+
+---
+
+# Slide 5 — Preliminary Findings
+
+### English slide content
+
+**Title**  
+**Preliminary Finding: Better Structure ≠ Automatically Better Domain Understanding**
+
+你可以放一個表。
+
+| Dimension | Claude Code | Claude + Docs | Understand Anything |
+|---|---|---|---|
+| Find relevant code | Strong | Strong | Strong |
+| Reconstruct flow | Strong | Strong | Strong |
+| Explain domain terminology | Medium | **Strong** | Medium–Strong |
+| Explain “why” / rationale | Weak–Medium | **Medium** | Medium |
+| Evidence traceability | Strong | Strong | Medium–Strong |
+| Reduce manual exploration | **Strong** | Strong | Medium |
+| Reusable understanding | Weak | Weak–Medium | **Strong** |
+| Setup / interpretation overhead | Low | Medium | **High** |
+
+下面放：
+
+**Example placeholder observations**
+- Claude Code found **[80–90%]** of the implementation paths I expected
+- Adding documents improved domain explanation in **[3/5]** questions
+- Some documents were stale or ambiguous in **[1–2]** cases
+- Understand Anything provided a useful overview, but I still returned to source / Claude for **[most / ~70%]** of detailed questions
+
+**Preliminary conclusion**
+
+> **The additional value is real, but smaller and different from what I initially expected.**
+
+### 中文講稿
+
+> 這邊的數字我還在補，所以目前是 preliminary。
+>
+> 目前最大的感覺是，Claude Code 對找 code、trace flow 已經很強。
+>
+> 加入文件之後，對 terminology 和 domain meaning 確實比較有幫助，尤其是 code 本身只告訴我「怎麼做」，文件有時候會補「這個概念是什麼」。
+>
+> 但文件也有另一個問題，就是可能 stale。所以它不能被當成絕對 truth。
+>
+> Understand Anything 的優勢比較不一樣。它可以讓整個 codebase 有比較 systematic 的 representation，也比較有 reusable 的感覺。
+>
+> 但以我目前的實測，我還沒有看到它在具體 investigation 上明顯超越直接用 Claude Code。
+>
+> 很多時候我看完 overview 或 graph，最後要確認細節時還是會回 source code 或 Claude。
+>
+> 所以它不是完全沒價值，而是它提供的價值跟我一開始預期的不太一樣。
+
+---
+
+# Slide 6 — What I Learned
+
+### English slide content
+
+**Title**  
+**The Problem Is Broader Than Code Analysis**
+
+中間可以畫一條：
+
+```text
+Source Code
+    +
+Existing Docs
+    +
+Tests
+    +
+Git / PR History
+    +
+Domain Knowledge
+    ↓
+Reliable System Understanding
+```
+
+旁邊：
+
+**What code is good at**
+- Current behavior
+- Data flow
+- Conditions
+- Dependencies
+
+**What requires additional context**
+- Domain meaning
+- Design rationale
+- Historical constraints
+- Why a rule exists
+
+**Main learning**
+
+> **Business understanding is an evidence-integration problem, not only a code-analysis problem.**
+
+再下一句小字：
+
+> LLM inference can bridge some gaps, but the quality is bounded by the context available.
+
+### 中文講稿
+
+> 這是我目前覺得最重要的 learning。
+>
+> 我一開始其實把問題想成「是不是 code analysis 還不夠好」。
+>
+> 但做到現在，我比較覺得它是一個 evidence integration 的問題。
+>
+> Code 很適合告訴我 current behavior。
+>
+> 但如果我要知道 domain meaning、design rationale 或 historical reason，資訊可能散在文件、test、git history、PR，甚至只有 domain expert 知道。
+>
+> LLM 確實可以幫忙把這些東西推起來，但是如果 context 裡本來就沒有答案，它最後還是只能 inference。
+>
+> 所以單純把 code analysis 做得更完整，不一定就能解決所有的 business understanding 問題。
+
+---
+
+# Slide 7 — Recommendation / Next Step
+
+### English slide content
+
+**Title**  
+**Next Step: Validate the Value of Richer Context Before Adding More Tooling**
+
+**For now**
+- Keep Claude Code as the primary investigation tool
+- Use existing documents selectively as additional context
+- Finish evaluating Understand Anything on the two real cases
+- Do **not** expand the tool survey yet
+
+**Next question to answer**
+
+> **Does richer context consistently improve domain understanding enough to justify a dedicated knowledge layer?**
+
+**Decision framework**
+
+### If Claude + docs is sufficient
+→ Keep the workflow simple
+
+### If richer context helps but is painful to maintain
+→ Evaluate a dedicated context / knowledge system
+
+### If neither helps enough
+→ Treat AI primarily as an investigation accelerator, not a source of domain truth
+
+**Success metric**
+> Less repeated investigation, faster mental-model formation, and fewer unresolved questions.
+
+### 中文講稿
+
+> 所以我現在不想繼續無限找新的工具。
+>
+> 下一步我想先把一個更基本的問題回答清楚：richer context 到底有沒有穩定的價值。
+>
+> 如果 Claude 加上我們現有的文件就已經很好，那可能根本不需要多一套系統。
+>
+> 如果文件真的很有幫助，但是每次整理、維護 context 都很麻煩，那時候 specialized knowledge layer 才有導入價值。
+>
+> 如果最後連 richer context 都沒有帶來足夠增益，那我覺得目前 AI 最合理的定位，就是加速 investigation，而不是期待它自己建立一個完整可靠的 domain knowledge base。
+>
+> 所以我會先把這兩個 case 跑完，再決定值不值得往更大的 tooling investment 走。
+
+---
+
+# Appendix — Concrete Example
+
+這頁非常值得準備，但**主管有興趣再翻**。
+
+### English slide content
+
+**Title**  
+**Example: Golden Tool Selection**
+
+左邊：
+
+**Known from code**
+```text
+Search Golden candidates
+        ↓
+Return candidate list
+        ↓
+Evaluate eligibility
+        ↓
+Selectable / Disabled
+        ↓
+Create Second Form
+```
+
+右邊：
+
+**Questions code alone may not answer**
+- Why return an ineligible Golden at all?
+- What domain concept does the eligibility flag represent?
+- Which rule is a hard qualification requirement vs a UI convenience?
+- Was this behavior intentional or historical?
+- Could the system explain the rejection reason directly to users?
+
+下面一句：
+
+> **This is the type of gap I am trying to reduce — not simply “find the function.”**
+
+### 中文講稿
+
+> 如果用一個最具體的例子，就是 Golden selection。
+>
+> Code 其實很好追：search candidate、做 eligibility 判斷、最後 selectable 或 disabled。
+>
+> 真正困難的是右邊這些問題。
+>
+> 為什麼不 eligible 的 Golden 還要出現在 search result？
+>
+> 哪些 condition 是真正的 qualification requirement，哪些可能只是 UI behavior？
+>
+> 這些東西如果沒有其他 context，AI 很容易只能根據 implementation 推測。
+>
+> 所以這就是我現在想驗證的 gap。
+
+---
+
+## 我建議你的簡報視覺上非常簡單
+
+不要放一堆 AI logo，也不要畫很複雜的 graph。
+
+整份 deck 最多出現三種視覺：
+
+1. **Slide 1：What / Why 兩欄**
+2. **Slide 4：兩個 case + 三種 setup**
+3. **Slide 5：唯一一張比較表**
+
+其他都用一句大的 takeaway。
+
+你的主管最後真正應該記住的不是 `Understand Anything` 這個名字，而是：
+
+> **Claude 已經很好地解決「怎麼跑」；我正在確認「為什麼這樣跑」需要什麼額外 context，以及那個 context 值不值得系統化管理。**
+
+這句其實可以直接當整份簡報的核心。

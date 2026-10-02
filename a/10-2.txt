@@ -1,0 +1,118 @@
+那我會建議你現在**完全不要把重點放在「哪個工具最好」**。
+
+你跟主管 1-1 最重要的是讓他聽到：
+
+> 我遇到一個真實問題 → 我自己找方法改善 → 做了一個有方向的實驗 → 實驗沒有直接得到完美答案，但讓我更清楚問題本質 → 我知道下一步要怎麼驗證。
+
+這已經是一個很完整的報告。
+
+你可以把整段控制在 5 分鐘左右：
+
+**1. 問題**
+接手 legacy code 時，最花時間的不是 syntax，而是不知道背後 business context。資深同事忙，所以很多知識要自己追。
+
+**2. Claude Code 改善了一部分**
+Claude Code 很有效，可以幫忙 trace code、找相關邏輯、解釋流程。
+
+**3. 但我發現新的問題**
+Claude Code 是「問一次、解一次」：
+
+- 過去問過什麼不容易累積
+- 要自己知道該問哪些問題
+- code 改了之後還要重新確認
+- 同樣的 knowledge 可能每個人都重新探索一次
+
+所以你開始想：
+
+> 能不能把這種理解變得更系統化？
+
+**4. 所以試 Understand Anything**
+你原本的 hypothesis 是：
+
+> 如果能自動把 codebase 建成 knowledge graph / business flow，可能能把 Claude 的單點探索變成 reusable knowledge。
+
+**5. Preliminary result**
+注意你現在只測約 70%，所以不要說「UA 不行」。
+
+應該說：
+
+> 它確實有做 code structure + LLM inference，也有嘗試抽 domain / flow / business meaning；但以我目前的使用經驗，還沒有看到相較直接使用 Claude Code 足夠明顯的增益。
+
+具體一點：
+
+> 我看完 graph / flow 後，很多時候還是得回 source code 或再問 Claude 才能確認真正的 business meaning。
+
+這就夠了。
+
+**6. 最重要的 learning**
+
+你的 learning 不是：
+
+> Understand Anything 不好用。
+
+而是：
+
+> **我一開始以為問題是缺一張完整的 code graph，但實驗後發現，真正困難的是 business knowledge 本來就不完全存在 code 裡。**
+
+它可能散落在：
+
+> code + 舊文件 + git history + PR + ticket + 人的腦袋
+
+所以只靠 code + LLM inference，一定有資訊上限。
+
+這其實是你這次最好的 insight。
+
+**7. 下一步**
+
+你不需要承諾「我要再研究十個產品」。
+
+你可以說：
+
+> 下一步我想先驗證一個更小的 hypothesis：加入既有文件、歷史資訊之後，AI 對 business logic 的理解會不會明顯改善。
+
+找一個 subsystem：
+
+- code
+- 相關文件
+- git / PR
+- 幾個已知答案的問題
+
+然後測：
+
+> Claude Code only  
+> vs  
+> Claude + richer context
+
+如果差異很明顯，就證明 organizational context 有價值。
+
+如果還是差不多，那你也得到一個有價值的結論：
+
+> 現階段最 practical 的方法可能不是自動建立完整 knowledge base，而是讓 Claude 幫人更快 investigate。
+
+---
+
+我會建議你實際跟主管這樣講：
+
+最近我接手新的 legacy code 任務時，發現最大的成本其實不是 code 本身看不懂，而是不知道它背後的 business context。很多時候我可以看懂這段程式在做什麼，但不知道為什麼要這樣做、有哪些歷史原因或特殊 case。資深同事通常知道，但大家也都很忙，所以我會花不少時間自己 trace。
+
+公司開始使用 Claude Code 之後，這件事改善很多。現在我可以直接問它某個流程怎麼走、某個狀態在哪裡被修改，探索陌生 codebase 的速度確實快很多。
+
+但我用了一陣子之後發現，Claude Code 比較像是在解決「單次 investigation」。今天我問完一個問題，答案通常停留在那次 conversation 裡；下次我或另一個人碰到類似問題，可能又重新 trace 一次。另外，要完整理解一個 domain，哪些問題該問、哪些地方要檢查，還是要靠人自己決定。
+
+所以我開始研究，有沒有工具可以把這些理解更系統化地整理和累積。我目前主要試了 Understand Anything，大概完成七成左右的評估。
+
+它確實不只是畫 dependency graph，也會用 LLM 嘗試抽出 domain、business flow 和 business meaning。只是以我目前的使用經驗，這些結果還沒有明顯降低我理解 business logic 的成本。很多時候我看完它整理的 graph 或 description，最後還是需要回 source code，或再請 Claude 幫我確認。
+
+所以我目前最大的 learning 是：我一開始以為問題是缺少一個完整的 code knowledge graph，但現在我覺得真正困難的是，business knowledge 本來就不完全存在 code 裡。它可能散落在 code、舊文件、git history、PR、ticket，甚至人的經驗裡。只靠 code 去讓 LLM 推理，效果可能有天然上限。
+
+下一步我想做的不是繼續無限找更多 graph 工具，而是挑一個我們已經比較熟悉的 subsystem，把 code 加上現有文件和歷史資訊一起提供給 AI，再用幾個有 ground truth 的問題測試，看 richer context 能不能明顯提高理解品質。
+
+如果效果有明顯改善，就表示我們真正需要的是一個把 organizational context 提供給 AI 的方式；如果差異還是不大，那也代表現階段最實用的方式可能還是把 AI 當成加速 investigation 的工具，而不是期待它自動建立完整可靠的 business knowledge base。
+
+這個版本的好處是，主管不太會得到「所以你只是試了一個不好用的工具」的印象。
+
+他比較會聽到：
+
+> **你主動研究了一個 recurring engineering problem，而且已經把問題定義從「找更好的 AI 工具」收斂成「什麼 context 才真正有價值」。**
+
+這就是你這次最值得報告的東西。

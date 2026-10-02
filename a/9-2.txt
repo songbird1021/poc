@@ -1,0 +1,272 @@
+有。我重新把市場上這批東西用你真正的需求篩過一次後，我會**修正前面的推薦**：
+
+> 如果你的問題是「我要理解 legacy code 背後的 business logic / why，而且公司其實有舊文件、PR、Jira、Slack 等散落知識」，  
+> **目前最值得你測的其實是 Unblocked，而不是另一個 code graph。**
+
+但先講限制：我目前**找不到一個可信的、第三方統一 benchmark**，可以直接證明「X 是 2026 年 business-logic understanding 第一名」。現有 benchmark 大多測 code retrieval、token、SWE-bench；「能不能理解公司業務脈絡」這件事很難標準化。所以以下是依照產品能力＋公開實際案例來判斷，不是假裝有一張客觀 leaderboard。
+
+### 以你的需求，我會這樣分
+
+| 工具 | Code | Git/PR history | Docs | Slack/Jira 等 | 處理過時/衝突資訊 | 適合你的程度 |
+|---|---:|---:|---:|---:|---:|---|
+| **Unblocked** | ✅ | ✅ | ✅ | ✅ | **✅ 核心功能** | **最貼題** |
+| **Repowise** | ✅ | ✅ | ✅ | 部分/偏 repo 內 | decision 有 provenance/staleness | **最佳 local/OSS POC** |
+| **Understand Anything** | ✅ | 較弱 | ✅ | ❌ | 較弱 | 你已經在測 |
+| **DeepWiki** | ✅ | repo context | repo docs | ❌ | 較弱 | 很適合 onboarding/wiki |
+| **Augment Context Engine** | **✅ 很強** | ✅ | context 可納入 | 重點不在這 | — | agent 找 code 很強 |
+| **Swimm** | ✅ | ✅ | ✅ | — | 人工驗證 | 重型 legacy modernization |
+
+---
+
+## 為什麼我現在特別注意 Unblocked
+
+你前面說的一句話，其實跟它產品定位幾乎完全重疊：
+
+> 「我們有些專案文件，但不一定有維護，可能過時。」
+
+Unblocked 不只是把文件丟進 RAG。
+
+它現在的設計是把：
+
+**source code + PR + Slack/Teams + Jira/Linear + Confluence/Notion/Google Drive + incidents/production**
+
+放進同一個 context layer。官方文件明確說它會跨 source reasoning，而不是一個個 source 分開搜尋。:chatgpt-content-reference{index="0"}
+
+更重要的是，它直接把你剛才問我的問題當產品問題：
+
+> Markdown 會 stale，不同 source 會互相矛盾，光「能搜尋到」不夠。
+
+它宣稱會依據 **recency、authority、proximity** 去 reconcile conflicting sources，而且回答會附原始 source link。:chatgpt-content-reference{index="1"}
+
+甚至官方 FAQ 說，當 code 和其他來源衝突時，它會把 **main branch 當 source of truth，production code 優先**。:chatgpt-content-reference{index="2"}
+
+這跟 UA 差異非常大。
+
+UA 比較像：
+
+> Code → structure → LLM → 推一個 business model
+
+Unblocked 比較像：
+
+> Code 現在這樣做  
+> + 2024 PR 當初為什麼這樣改  
+> + Jira 原始需求  
+> + Slack 當時討論  
+> + Confluence 舊文件  
+> → LLM 幫你 reconcile 成答案，並告訴你 evidence 在哪。
+
+**這才是我現在認為最接近「理解公司 business logic」的產品形態。**
+
+---
+
+### 而且它問的問題，跟你的問題幾乎一模一樣
+
+官方直接列出的 use cases 包含：
+
+> Why does this service use Kafka instead of RabbitMQ?  
+> Has anyone tried this migration before?  
+> Is there an existing implementation I should follow?
+
+回答會考慮 code、internal discussions 和 documentation。:chatgpt-content-reference{index="3"}
+
+也就是它沒有假設：
+
+> 「business meaning 一定藏在 code 裡。」
+
+而是假設：
+
+> **business meaning / technical intent 散落在整個公司的 engineering history 裡。**
+
+我覺得這個 assumption 比 UA 合理很多。
+
+---
+
+## 有沒有人真的拿 legacy code 用？
+
+有一些滿貼你的案例。
+
+Webflow 把它接到一個 **10+ 年的 codebase**，他們的 engineering productivity 團隊表示，過去 agent 可以看到 repo，但不知道「為什麼 code 會長這樣」；加入 Unblocked 後，會把 Slack、PR、過往 reliability/security decisions 等 context 帶給 Claude/Cursor/Codex。這是 Unblocked 自己發布的 customer case study，所以不能當成獨立研究，但至少是實際公司 deployment，不只是 demo。:chatgpt-content-reference{index="4"}
+
+另一個案例更像你現在的情境：RB Global 有一個新 platform team 要接手 consultant 留下來的 stack，知識散在 GitHub、CircleCI、Confluence、Jira、Slack。官方案例稱原本估六個月的 ownership transition，最後三個月完成，現在支援 200+ developers。依然是 vendor case study，要打折看，但 use case 高度 relevant。:chatgpt-content-reference{index="5"}
+
+---
+
+## 第三方評價呢？
+
+這裡我就會保守很多。
+
+G2 現在只有 **2 篇 pricing page 可見 review**，所以 4.9/5 完全不能當大樣本證據。:chatgpt-content-reference{index="6"}
+
+不過其中一位 mid-market engineer 提到的優點恰好是：
+
+> code search 告訴他 function 現在做什麼；Unblocked 能找到是哪個 PR 引入、哪個 Slack thread 討論、對應哪張 ticket。
+
+他也提了一個**非常重要的缺點**：
+
+> 有時會找到一個後來已被推翻的 decision，卻沒有正確標成 stale，所以重要結論仍需要 sanity-check。 :chatgpt-content-reference{index="7"}
+
+
+這個負評我反而很在意。
+
+因為它證明就算產品說有 recency/conflict resolution，**現實還沒有完全解掉 stale knowledge 問題。**
+
+所以不要期待：
+
+> 接上 Unblocked → 公司知識瞬間變成真理資料庫。
+
+但至少它**正在直接解你碰到的問題**。
+
+---
+
+# 那 Repowise 呢？
+
+我會把它放在非常清楚的位置：
+
+### 如果你要「自己今天就能 local 跑」：
+
+**Repowise 是我最想測的。**
+
+它會 index：
+
+> code + dependency graph + git history + tests + documentation + decisions
+
+並提供 cited answers。:chatgpt-content-reference{index="8"}
+
+而且它特別有 `get_why()`：
+
+> 找 architectural decisions → evidence → supersession chain；沒有 decision 就退回 git archaeology。
+
+這比單純 code graph 更接近你要的「why」。它也會標 decisions 的 evidence/confidence，並處理 supersedes / conflicts 等關係。:chatgpt-content-reference{index="9"}
+
+優點是：
+
+**local、self-hosted、你可以很快裝來試。**
+
+缺點就是我們剛剛聊過的：
+
+**AGPL**，以及它主要還是 **repo-centric engineering intelligence**。
+
+如果真正的答案在：
+
+> Jira ticket + Slack thread + Confluence 文件
+
+Repowise 的 scope 就沒有 Unblocked 那麼完整。
+
+---
+
+# DeepWiki 呢？
+
+DeepWiki 是另一個值得認識的 baseline。
+
+它現在會自動把 repository 產生：
+
+**architecture diagram + wiki/docs + source links + Q&A**
+
+而且可以用 `.devin/wiki.json` 告訴它「哪些 business/domain 特別重要」，避免大型 repo 自動分析漏掉重要部分。:chatgpt-content-reference{index="10"}
+
+但本質仍然比較偏：
+
+> **理解 repo。**
+
+而不是：
+
+> **理解 organisation 為什麼把 repo 寫成這樣。**
+
+所以如果你覺得 UA 是「有圖、有描述，但還是不知道 why」，我不會期待 DeepWiki 徹底解決這件事。
+
+---
+
+# Swimm 其實也很有意思，但完全是另一種產品
+
+Swimm 現在已經轉得滿 enterprise modernization 了。
+
+他們的論點甚至跟我們這串聊天的結論非常像：
+
+> deterministic analysis alone misses intent；AI alone hallucinates；所以 deterministic analysis + GenAI + senior engineers 一起做。
+
+他們會交付 architecture/dependency map、critical flow、extracted business logic、knowledge base，而且 SME 會人工驗證。:chatgpt-content-reference{index="11"}
+
+這可能真的比較能把 legacy business rules 挖出來。
+
+但它已經不是：
+
+> 「我裝一個工具玩看看。」
+
+而比較像：
+
+> **「公司要做 legacy modernization project，找 vendor 進場。」**
+
+所以跟你現在 1-1 的探索階段不太匹配。
+
+---
+
+# 如果是你，我現在其實只會再測 **一個**
+
+不是把市場上十個全部跑一遍。
+
+**Understand Anything → Unblocked**
+
+這兩個剛好可以驗證兩個完全不同的 hypothesis：
+
+**UA hypothesis**
+
+> 如果 AI 把 code 自動整理得夠完整，它就能推理 business logic。
+
+你目前的 preliminary result：
+
+> 有幫助，但額外增益沒有預期大。
+
+**Unblocked hypothesis**
+
+> 可能不是 code 不夠，而是 business meaning 本來就不只存在 code 裡；如果把 docs + PR + Jira + discussions 一起給 AI，效果會不會明顯提升？
+
+這是一個非常漂亮的第二個 experiment。
+
+---
+
+## 而且 Unblocked 剛好很好 POC
+
+現在 Platform plan 是 **$29/user/month（年繳價格）**，官方提供 **21 天完整 trial、不需要信用卡**。可以接 Claude/Cursor/Copilot，也有 MCP。:chatgpt-content-reference{index="12"}
+
+所以如果你們 security policy 允許，我會拿：
+
+**1 個 repo  
++ 相關 project docs  
++ 對應 Jira project  
++ 一個相關 Slack channel**
+
+然後問你前面那 5 個 legacy questions。
+
+不用先餵全公司。
+
+而且這次測試題我會故意包含：
+
+> 「為什麼這段 logic 存在？」
+
+> 「文件說 X，但現在 code 還是這樣嗎？」
+
+> 「這個 behavior 是哪一次需求 / PR 引入？」
+
+> 「我們以前是不是試過另一種 implementation？為什麼放棄？」
+
+> 「如果我要改這個 rule，有什麼歷史原因或 incident 是我應該先知道的？」
+
+**如果 Unblocked 連這些都不能明顯贏 Claude Code alone，那我會開始懷疑目前市場上是不是根本還沒有成熟產品能解你這個問題。**
+
+這其實也是一個很有價值的 1-1 結果。
+
+---
+
+所以，如果你現在逼我回答：
+
+> **「2026 年 9 月，我這個需求最 promising 的到底是哪個？」**
+
+我的答案會變成：
+
+**商業產品：先看 Unblocked。**  
+**Local / OSS POC：Repowise。**  
+**單純 codebase auto-documentation：UA / DeepWiki。**  
+**大型 agent code retrieval：Augment。**  
+**真正大型 legacy modernization 專案：Swimm。**
+
+而你現在最應該試的是 **Unblocked**，因為它第一次真正對準你遇到的「**code 本身不是全部的知識**」這件事。

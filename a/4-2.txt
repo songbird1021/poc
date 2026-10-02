@@ -1,0 +1,157 @@
+我會把兩件事分開。你現在真正要驗證的是 **「能不能幫我理解 legacy business logic」**；CodeGraph 那類主要在驗證 **「能不能讓 agent 用更少 context/token 找到 code」**。它們不是同一個問題。
+
+### 1. 怎麼證明 Understand Anything「差強人意」
+
+不要證明「圖不好看」或「我覺得沒用」，而是把 hypothesis 寫成：
+
+> **使用 Understand Anything 後，我是否能更快、更正確地回答原本需要請教資深工程師的 business-logic 問題？**
+
+然後拿 5～10 個你工作上真的遇過的問題測。最好是**答案已經被你或資深同事確認過**的，例如：
+
+| 真實問題 | Claude Code | + Understand Anything |
+|---|---|---|
+| 為什麼某狀態會進到 X？ | 正確嗎 / 花多少探索 | 同左 |
+| 一個 user action 完整經過哪些步驟？ |  |  |
+| 哪些 exception 會跳過正常流程？ |  |  |
+| 這個 weird condition 的 business reason 是什麼？ |  |  |
+| 改某欄位會影響哪些 business flow？ |  |  |
+
+你真正要記的不是 token，而是這 5 個指標：
+
+**① Correctness**  
+答案有沒有錯。
+
+**② Completeness**  
+有沒有漏掉 branch、exception、batch job、queue、特殊 customer case。
+
+**③ Time / investigation effort**  
+你是否真的比較少開檔案、少追 code、少問 Claude。
+
+**④ Evidence / confidence**  
+它有沒有告訴你「這個結論來自哪些 code」，還是生成了一個聽起來合理的 business story。
+
+**⑤ Reusability**  
+下次遇到相關問題，已有的 graph/domain model 是否真的幫得上忙。
+
+這樣你最後就可以得到類似：
+
+> 5 個問題裡，UA 的 graph 在 architecture/navigation 上有幫助；但在 business reason、exception、完整流程上，最後仍需要回到 source code 驗證。相較 Claude Code baseline，沒有明顯降低我理解 business logic 的工作量。
+
+這句就很有力，因為這是 **針對你的 use case 的實測結果**，不是在評論產品本身。
+
+而且 Understand Anything 現在確實明確宣稱它能抽取 `domain → flow → step` 的 business-domain graph，所以拿 business-flow comprehension 當評測標準是公平的，不是你拿錯尺。:chatgpt-content-reference{index="0"}
+
+有一點要注意：如果你目前只跑過它的 structural graph，最好至少也把 `/understand-domain` 的輸出看過一次再下結論，因為那才是它專門針對 business logic 的功能。:chatgpt-content-reference{index="1"}
+
+---
+
+更簡單一點，你甚至可以做一張主管一眼就懂的表：
+
+| 能力 | Claude Code | Understand Anything | 你的觀察 |
+|---|---|---|---|
+| 找相關 code | ✅ | ✅ | 都做得到 |
+| 看 dependency | △ | ✅ | UA 圖比較直觀 |
+| 解釋單一流程 | ✅ | ✅ | 差異有限 |
+| 找 business exception | △ | △ | 還是得驗 source |
+| 解釋「為什麼」 | △ | △ | code 本身可能沒有答案 |
+| 知識持久化 | ❌ | ✅ | UA 有優勢 |
+| 持久化後真的好不好用 | — | **？** | **這是目前最大疑問** |
+
+這會比「圖很多但我看不懂」好很多。
+
+而且你甚至不一定要證明它「結果差」。
+
+你可以說：
+
+> **它解決了 knowledge representation，但沒有明顯解決 knowledge acquisition。**
+
+這句很精準。
+
+它確實幫你把東西存成 graph。
+
+但問題是 graph 裡面到底是不是你真正需要的 knowledge。
+
+---
+
+### 2. 那 CodeGraph / token-saving 類工具要不要試？
+
+**以你這次 1-1 的故事來說，我不認為有必要。**
+
+因為很容易讓你的 research question歪掉。
+
+你的問題本來是：
+
+> 「我不懂 legacy code 背後的 business meaning，AI 能不能幫我們累積這些 knowledge？」
+
+CodeGraph 回答的是：
+
+> 「LLM 不要每次讀那麼多 raw source，我先建 symbol/dependency graph，讓它用比較少 context 找 code。」
+
+這件事可能有價值，但它沒有直接解決：
+
+> 「為什麼這個 business rule 存在？」
+
+目前 CodeGraph 類工具公布的 benchmark，確實主要也是 **token/context efficiency**。
+
+例如 `websines/codegraph-mcp` 公開的一個 111K-line Python 測試，在一個 multi-step refactoring investigation 中報告約 **23% token reduction，而且維持相同 accuracy**。:chatgpt-content-reference{index="2"}
+
+另一個叫 `jotaseme/codegraph` 的專案則自己報告某些 dependency/context query 可以減少約 90%+ tokens；但這是專案自己的 benchmark，而且 task 比較偏 code retrieval，不應直接外推成「business understanding 提升 96%」。:chatgpt-content-reference{index="3"}
+
+甚至不同 CodeGraph implementation 的數字也差很多；另一個專案報告平均約 68% token reduction。:chatgpt-content-reference{index="4"}
+
+所以那些數字能證明：
+
+> **structured retrieval 很可能可以少讀很多 source code。**
+
+不能證明：
+
+> **agent 更理解你公司的業務。**
+
+這個 distinction 很重要。
+
+---
+
+## 我反而建議你的 1-1 先停在這裡
+
+你現在其實已經有一個很完整的 finding：
+
+**第一階段**
+
+> Claude Code 已經非常有效地降低「陌生 code exploration」成本。
+
+**第二階段**
+
+> 我原本猜測 knowledge graph 可以進一步解決「知識無法累積」的問題。
+
+**Experiment**
+
+> 我試了 Understand Anything。
+
+**結果**
+
+> 它可以自動把 structural/domain information 持久化，但 graph 本身沒有顯著提升我對 business logic 的理解；尤其「why」、exception、歷史原因仍然需要 source / history / 人來確認。
+
+**新的 insight**
+
+> 所以問題可能不是「需要更完整的 code graph」，而是**如何把工程師與 AI 已經驗證過的 investigation result 累積成可信 knowledge**。
+
+這其實比你跑五個工具然後列 feature matrix 更有意思。
+
+---
+
+至於 CodeGraph，我會把它放到一個 **separate follow-up**：
+
+> 如果之後公司發現 Claude Code 在大型 repo 上有明顯的 token cost、context retrieval 或 latency 問題，我再測 CodeGraph / Graphify 類 context engine。
+
+也就是：
+
+**UA 是 knowledge-management experiment。**  
+**CodeGraph 是 agent-efficiency experiment。**
+
+不要混在一起。
+
+如果主管真的問「所以有沒有下一個值得試的？」，你可以很簡單回答：
+
+> 「有一些 CodeGraph 類工具可以讓 Claude 用 dependency graph 取 context，公開 benchmark 顯示 token usage 有下降；但它解的是效率問題，不是我現在最想解的 business-knowledge 問題，所以我暫時不會把它當成下一個主要方向。」 :chatgpt-content-reference{index="5"}
+
+我覺得這反而會讓你的報告顯得你**有在收斂問題，而不是一直換工具試**。

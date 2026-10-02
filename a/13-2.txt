@@ -1,0 +1,180 @@
+有，而且我剛重新查了一輪後，有一個重要更新：**Graphify 現在其實已經很明確支援「code + docs」一起建模**，比我前面把它定位成偏 code graph 更進一步了。
+
+如果你的條件是「legacy code + 公司現有文件」，我現在會看這幾個：
+
+| 工具 | Code + docs | History / why | 文件與 code 關聯 | 適合你現在試嗎 |
+|---|---|---|---|---|
+| **Graphify** | **很完整** | ADR/註解/PR 部分 | **同一個 graph** | **✅ 很值得** |
+| **GroundGraph** | **✅ docs + requirements + tests + code** | evidence-oriented | **強調 evidence + human confirm** | **✅ 很貼你的研究問題** |
+| **Repowise** | ✅ repo docs | **✅ Git + decisions 很強** | 有 provenance/freshness | ✅ 但 AGPL |
+| **Understand Anything** | ✅ code、knowledge base | 有 LLM inference | 比較偏各自 analysis | 你已經在測 |
+| **AgentForge Graph** | ✅ ADR/docs | ✅ git history | **直接 link decision → code** | 有意思，但非常新 |
+| **Unblocked** | **✅ 外部文件也強** | **✅ PR/Jira/Slack** | org-level context | 商業產品 |
+
+### 我會特別重新看 Graphify
+
+它目前官方寫的是可以把：
+
+**code + Markdown/docs + PDF + Word/Excel + SQL schema + config + Google Workspace + images/video**
+
+放進 knowledge graph；code 用 tree-sitter deterministic extraction，而 docs / PDF 等走 LLM semantic extraction。文件和 code 最後進的是**同一張 graph**，可以 query/path/explain，而且支援 incremental update。:chatgpt-content-reference{index="0"}
+
+例如它會把：
+
+- ADR / RFC citation
+- `WHY:` / `NOTE:` comments
+- Markdown links
+- 文件中的 concepts
+- code symbols
+- SQL tables
+
+都變成 node / relationship。:chatgpt-content-reference{index="1"}
+
+這其實非常接近你原本想測的：
+
+> **如果我不只給 code，而是 code + 我們現有文件，它產出的 business understanding 會不會好很多？**
+
+所以如果你原本就有 Graphify 在 radar 裡，**我現在反而會把它排在下一個 POC 的前面**。
+
+不是因為要比較誰 token 少，而是因為它可以直接驗證你新的 hypothesis：
+
+> **code-only inference 效果有限，那 code + existing docs 呢？**
+
+---
+
+### GroundGraph 更貼你剛剛一直在糾結的「可信度」
+
+這個是我這次搜尋才特別注意到的。
+
+它的定位直接是：
+
+> requirements + docs + tests + code
+
+而且不是只 retrieval。它強調每個關聯要有 evidence，另外有：
+
+> **AI proposes → human confirms**
+
+的 business-logic workflow。:chatgpt-content-reference{index="2"}
+
+也就是 AI 可以說：
+
+> 「我推測這條規則是為了 X。」
+
+但在 engineer 確認之前，它只是 candidate，不會被當成 authoritative knowledge。
+
+它還有 doc→code drift checks，例如文件引用的 symbol/path 已經不存在、requirement 沒找到 implementation、linked test 不存在等等。:chatgpt-content-reference{index="3"}
+
+License 是 **MIT / Apache-2.0 dual license**，對公司 POC 也比 AGPL 乾淨很多。:chatgpt-content-reference{index="4"}
+
+不過我要加一個很大的星號：
+
+**它目前不像 UA / Graphify 那麼成熟或那麼多人用。**
+
+所以我會把它當「研究方向非常對」而不是「已經證明最好」。
+
+---
+
+### Repowise 的特長還是不太一樣
+
+Repowise 很強的地方是：
+
+**code + dependency + Git + docs + architectural decisions**。:chatgpt-content-reference{index="5"}
+
+它的 `get_context` 可以把 docs、ownership、last change、decisions、doc drift 等資訊一起交給 agent；`get_why` 則專門找 architectural decision / history。:chatgpt-content-reference{index="6"}
+
+所以如果你的問題是：
+
+> 「為什麼這裡當初改成這樣？」
+
+我會比較期待 Repowise。
+
+如果你的問題是：
+
+> 「這份需求/設計文件描述的 business flow，跟 code 到底怎麼對應？」
+
+我反而會先看 Graphify / GroundGraph。
+
+---
+
+### AgentForge Graph 也很符合，但目前太新
+
+它把：
+
+**code symbols + framework semantics + ADR/docs + Git evolution**
+
+放在一張 provenance-tracked graph 裡。
+
+最有意思的是 ADR/doc 可以直接形成：
+
+> `Decision → GOVERNS → Code`
+
+而且 retrieval 到 code 時，會把 governing decision 一起帶出來。:chatgpt-content-reference{index="7"}
+
+License 是 Apache-2.0。
+
+但 GitHub 現在只有非常少量的 adoption，所以我不會叫你拿它當主管報告的主要 evidence。它比較像：
+
+> 「這個方向業界確實正在做。」
+
+---
+
+## 所以我現在會幫你把 scope 砍成這樣
+
+你**完全不用研究五套**。
+
+你現在其實只需要回答一個問題：
+
+> ### 加入現有文件之後，能不能顯著改善 AI 對我們 legacy business logic 的理解？
+
+這個問題比：
+
+> 哪個 code intelligence tool 最強？
+
+重要太多了。
+
+你甚至可以只做：
+
+**A — Claude Code + code**
+
+**B — Claude Code + code + 既有文件**
+
+**C — Graphify(code + 同一批文件)**
+
+UA 就把你目前做過的 observation 帶進來，不用重跑所有東西。
+
+這樣三組非常漂亮。
+
+---
+
+而且 **B 特別重要**。
+
+因為假如結果是：
+
+> Claude Code + docs 已經從 60 分變 85 分，Graphify 只有 87 分
+
+那你的 learning 就會是：
+
+> **真正有效的是把 organizational context 給 AI，未必需要額外導入一套系統。**
+
+反過來，如果：
+
+> Claude + docs 要我自己一直找文件、prompt、補 context；Graphify 能自動把文件和 code 關聯起來，答案也更完整
+
+那 specialized tool 才展現真正價值。
+
+這會讓你的主管報告非常有內容：
+
+> **「我不是在比較 AI 誰回答比較聰明；我在驗證 systematic context management 值不值得。」**
+
+---
+
+所以如果你問我**現在只再多試一個什麼**：
+
+**我會選 Graphify。**
+
+不是因為我認為它是市場冠軍，而是因為它最適合做你目前 hypothesis 的下一個實驗：
+
+> **UA 已經讓你看過 code → LLM → business model。**  
+> **Graphify 則可以直接測 code + existing docs → unified context。**
+
+而 GroundGraph 我會先留在你的「interesting future direction」裡，尤其是它的 **AI propose → human confirm** 概念，我覺得非常值得你在 1-1 裡提成一個 learning，但現在沒必要再開一條 POC。

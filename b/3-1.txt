@@ -1,0 +1,4 @@
+具體來說要怎麼算用了多少token/tool call等等
+我用的是claude code
+而且這些工具有時候claude code也不會主動調用
+到底怎麼測

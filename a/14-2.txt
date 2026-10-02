@@ -1,0 +1,53 @@
+那就把 scope 砍到很小。你只剩一週，**不要再研究市場、不要再加新工具、不要再追「最佳方案」**。
+
+你現在只做 **3 個實驗**，而且都用同一個你已經熟一點的 legacy subsystem、同一組 5 個問題，這樣結果才能比較。
+
+1. **Baseline：Claude Code + code only**  
+   問 5 個你曾經真的卡過的問題，例如「這個 business rule 為什麼存在」、「完整 flow 是什麼」、「有哪些 exception」。記錄：答案正確度、你還要不要自己追 code、花多少時間。
+
+2. **Richer context：Claude Code + code + 現有文件**  
+   把相關 README / design doc / spec / ADR /舊文件一起給它，再問完全相同的 5 題。你要看的不是「回答變長了沒」，而是：**business meaning、why、exception 有沒有真的變準。**
+
+3. **Systematic tool：把 Understand Anything 補到足以公平評估**  
+   不用研究到 100%。只補跟你問題直接相關的功能，尤其 domain/business flow 那塊。再用同樣 5 題評估：它有沒有比前兩組更省你整理 context、理解流程、重複探索的力氣。
+
+就這樣。**Graphify、Repowise、GroundGraph 全部先不碰。**
+
+因為你現在要回答的不是「哪個產品最好」，而是兩個更基礎、也更有價值的問題：
+
+> **A. 只靠 Claude Code，現在已經能解多少？**  
+> **B. 加入公司既有文件或 systematic context management，額外增益到底有多少？**
+
+如果這兩題都還沒回答，現在去測第四套工具只會讓你更亂。
+
+你最後只需要一張表：
+
+| 問題 | Claude only | Claude + docs | Understand Anything |
+|---|---|---|---|
+| Business flow |  |  |  |
+| Why / historical reason |  |  |  |
+| Exception / edge case |  |  |  |
+| 找 evidence |  |  |  |
+| Investigation effort |  |  |  |
+
+評分甚至不用很科學，`好 / 普通 / 差` 加一句 observation 就夠。
+
+然後你這週的成功條件不是「找到最佳工具」，而是最後能跟主管講清楚以下其中一種結論：
+
+- **Claude + code 已經夠好** → 暫時不值得多導入一層。
+- **加 docs 明顯改善** → 真正有價值的是 richer organizational context，下一步才值得研究怎麼管理它。
+- **UA 明顯比 manual docs workflow 好** → systematic context/knowledge layer 有價值，可以繼續評估。
+- **三個都不夠好** → 現階段 AI 適合加速 investigation，但不能取代資深工程師 knowledge transfer。
+
+這四種結果**任何一種都是有效研究結果**。
+
+如果你有 5 個工作天，我會切成：
+
+- **Day 1：**選 subsystem、整理 5 個 ground-truth 問題與現有文件  
+- **Day 2：**Claude code-only baseline  
+- **Day 3：**Claude + docs  
+- **Day 4：**補 UA、跑同樣題目  
+- **Day 5：**整理 comparison + 3 個 learning + 1 個下一步
+
+最重要的是：**這一週不要再開新的 branch。**  
+你現在最需要的不是更多選項，而是一個能收斂出結論的小實驗。

@@ -1,0 +1,8 @@
+你知道 understand anything / graphify 這種東西嗎
+
+我現在想要嘗試把公司的 legacy codebase 交給這種基於 LLM 理解業務邏輯的程式
+
+你幫我了解一下
+
+1. 現在最 promising 的方案是什麼？我可以拿哪個做測試？
+2. 大家使用起來體驗怎麼樣？我現在對他的成效半信半疑

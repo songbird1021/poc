@@ -1,0 +1,784 @@
+對，你真正要解的其實是這個：
+
+> **「Claude Code 到底有沒有用 Graphify / UA？如果有，用了之後是否真的少讀檔、少搜尋、少 token？」**
+
+不要靠觀察畫面，也不要靠 Claude 自己說它有用。直接把 Claude Code 當成 benchmark runner，留完整 JSON log。
+
+我會做成 **兩種實驗**，這點很重要：
+
+1. **Natural test**：不叫它使用 Graphify/UA，看它會不會自己用。
+2. **Forced test**：強制它使用 Graphify/UA，看「只要用了」到底有沒有幫助。
+
+這兩個不能混在一起。否則 Claude 沒主動用 Graphify，你最後會誤判成「Graphify 沒效果」。
+
+---
+
+# 1. 先跑一個你真的能分析的 Claude Code session
+
+假設問題是：
+
+```bash
+Q='Trace the complete refund flow from API entry point to the external payment provider. Cite every important file and function.'
+```
+
+跑：
+
+```bash
+mkdir -p bench/logs
+
+claude -p "$Q" \
+  --model sonnet \
+  --effort medium \
+  --permission-mode plan \
+  --output-format stream-json \
+  --verbose \
+  --include-hook-events \
+  --forward-subagent-text \
+  --no-session-persistence \
+  | tee bench/logs/q01.jsonl
+```
+
+Claude Code 官方目前支援 `json` / `stream-json`；`stream-json` 是 JSONL，一行一個 event，最後一行是 `result`，裡面包含整體 cost、duration、session metadata。`--include-hook-events` 還可以讓你看到 Graphify 這種 hook 是否有被觸發。:chatgpt-content-reference{index="0"}
+
+你現在有一份：
+
+```text
+bench/logs/q01.jsonl
+```
+
+這份就是你的 raw benchmark data。
+
+---
+
+# 2. 先看最後統計
+
+跑：
+
+```bash
+jq -s '
+  map(select(.type == "result"))[-1]
+  | {
+      duration_ms,
+      duration_api_ms,
+      num_turns,
+      total_cost_usd,
+      usage,
+      modelUsage
+    }
+' bench/logs/q01.jsonl
+```
+
+不同 Claude Code 版本目前 usage schema 可能落在 `usage` 或 `modelUsage`，所以我建議你**第一次先直接看它實際輸出**，不要硬寫死。
+
+也可以直接：
+
+```bash
+tail -n 1 bench/logs/q01.jsonl | jq
+```
+
+你應該會看到至少類似：
+
+```json
+{
+  "type": "result",
+  "duration_ms": 38124,
+  "num_turns": 11,
+  "total_cost_usd": 0.08,
+  "usage": {
+    ...
+  }
+}
+```
+
+Claude Code 官方文件目前明確指出 JSON output 會提供 `total_cost_usd` 和 per-model cost breakdown；這是 client-side estimate，所以如果你用 Max/Pro 訂閱制，**不要說這是你真的付了多少錢**，把它當 standardized API-equivalent cost 比較即可。:chatgpt-content-reference{index="1"}
+
+---
+
+# 3. Token 到底怎麼算？
+
+你真正要保留四欄：
+
+```text
+input_tokens
+cache_creation_input_tokens
+cache_read_input_tokens
+output_tokens
+```
+
+或新版 schema 的 camelCase 對應：
+
+```text
+inputTokens
+cacheCreationInputTokens
+cacheReadInputTokens
+outputTokens
+```
+
+**不要只加成一個 total token 就結束。**
+
+因為：
+
+```text
+10k uncached input
+10k cache read
+```
+
+和
+
+```text
+20k uncached input
+```
+
+成本與意義不同。
+
+你的報告最好長這樣：
+
+| Condition | Input | Cache create | Cache read | Output | Cost est. |
+|---|---:|---:|---:|---:|---:|
+| Claude only | 18,200 | 6,400 | 11,300 | 1,900 | $x |
+| Graphify | 6,700 | 2,100 | 8,900 | 1,800 | $y |
+
+如果你想要一個簡單的「context workload」數字，可以另外算：
+
+```text
+processed tokens
+=
+input
++ cache creation
++ cache read
++ output
+```
+
+但在報告裡註明這只是 **processed-token proxy**，不是 billing token。
+
+---
+
+# 4. Tool call 是最好量的
+
+Claude 每次真正呼叫工具，在 stream 裡會有：
+
+```json
+{
+  "type": "tool_use",
+  "id": "...",
+  "name": "Read",
+  "input": {...}
+}
+```
+
+Claude Code 官方文件也確認，stream 裡會包含 tool-use；foreground subagent 的 tool calls 也會出現在 stream。:chatgpt-content-reference{index="2"}
+
+直接抽：
+
+```bash
+jq -r '
+  select(.type == "assistant")
+  | .message.content[]?
+  | select(.type == "tool_use")
+  | [.id, .name, (.input | tostring)]
+  | @tsv
+' bench/logs/q01.jsonl
+```
+
+可能得到：
+
+```text
+toolu_01...    Read    {"file_path":"src/refund/controller.ts"}
+toolu_02...    Grep    {"pattern":"RefundService"}
+toolu_03...    Read    {"file_path":"src/refund/service.ts"}
+toolu_04...    Bash    {"command":"rg PaymentRequested src"}
+```
+
+---
+
+# 5. 算每種 tool 被 call 幾次
+
+我會用 `tool_use_id` 去重，比單純數 event 安全：
+
+```bash
+jq -s '
+[
+  .[]
+  | select(.type == "assistant")
+  | .message.content[]?
+  | select(.type == "tool_use")
+  | {
+      id: .id,
+      name: .name,
+      input: .input
+    }
+]
+| unique_by(.id)
+| group_by(.name)
+| map({
+    tool: .[0].name,
+    calls: length
+  })
+' bench/logs/q01.jsonl
+```
+
+結果例如：
+
+```json
+[
+  {"tool":"Bash","calls":4},
+  {"tool":"Grep","calls":7},
+  {"tool":"Read","calls":13}
+]
+```
+
+這就是你要的：
+
+```text
+Claude only:
+Read  13
+Grep   7
+Bash   4
+
+Graphify:
+Read   6
+Grep   2
+Bash   3
+```
+
+---
+
+# 6. 我甚至會數「讀了幾個不同 source files」
+
+因為這非常能代表 navigation cost。
+
+```bash
+jq -s '
+[
+  .[]
+  | select(.type == "assistant")
+  | .message.content[]?
+  | select(.type == "tool_use" and .name == "Read")
+  | .input.file_path
+]
+| unique
+| {
+    unique_files_read: length,
+    files: .
+  }
+' bench/logs/q01.jsonl
+```
+
+例如：
+
+```json
+{
+  "unique_files_read": 14,
+  "files": [
+    "src/foo.ts",
+    "src/bar.ts",
+    ...
+  ]
+}
+```
+
+然後你可能得到：
+
+```text
+Claude:          14 files
+Claude+Graphify:  6 files
+```
+
+這個數字對主管比「knowledge graph 很 powerful」有說服力多了。
+
+---
+
+# 7. 但現在來到你真正問的問題：怎麼知道 Claude 有沒有用 Graphify？
+
+## Graphify 有兩種可能
+
+### 如果 Graphify 是 MCP tool
+
+tool name 通常會長成：
+
+```text
+mcp__...graphify...__query
+```
+
+Claude Code 的 MCP tool 在 hook/tool event 裡就是一般 tool，命名格式是：
+
+```text
+mcp__<server>__<tool>
+``` :chatgpt-content-reference{index="3"}
+
+
+所以：
+
+```bash
+grep -i graphify bench/logs/q01.jsonl
+```
+
+就可以先找。
+
+---
+
+### 如果 Claude 是透過 Bash 跑
+
+例如：
+
+```text
+graphify query "..."
+```
+
+那 tool name 只會是：
+
+```text
+Bash
+```
+
+所以一定要檢查 input。
+
+例如：
+
+```bash
+jq -r '
+  select(.type == "assistant")
+  | .message.content[]?
+  | select(.type == "tool_use")
+  | select(
+      (.name | ascii_downcase | contains("graphify"))
+      or
+      ((.input | tostring | ascii_downcase) | contains("graphify"))
+    )
+  | {
+      id,
+      name,
+      input
+    }
+' bench/logs/q01.jsonl
+```
+
+**輸出是空的 = Claude 根本沒用 Graphify。**
+
+這一點非常重要。
+
+---
+
+# 8. Hook 觸發 ≠ Graphify 被使用
+
+Graphify 現在有一種 integration 是：
+
+```text
+Claude 想 Grep
+↓
+PreToolUse hook
+↓
+提醒 Claude：「先看 graph」
+```
+
+但：
+
+> hook 有觸發，不代表 Claude 後來真的 query graph。
+
+所以你要分兩欄：
+
+```text
+Graphify hook fired?   yes/no
+Graph query executed?  yes/no
+```
+
+Claude Code 的 `PostToolUse`/`PreToolUse` hook payload 本身就會帶：
+
+```text
+tool_name
+tool_input
+tool_use_id
+duration_ms
+```
+
+官方文件目前就是這個 schema。:chatgpt-content-reference{index="4"}
+
+所以你用了：
+
+```bash
+--include-hook-events
+```
+
+之後可以：
+
+```bash
+grep -i graphify bench/logs/q01.jsonl
+```
+
+自己確認。
+
+---
+
+# 9. Graphify「不主動使用」其實不要修掉
+
+這其實應該變成第一個 metric：
+
+## Tool adoption rate
+
+假設相同類型的 10 題：
+
+```text
+Graphify actually used: 3 / 10
+```
+
+那就是：
+
+```text
+Graphify natural adoption rate = 30%
+```
+
+這是一個非常有價值的結果。
+
+因為產品如果號稱：
+
+> install it and Claude understands your codebase better
+
+但實際：
+
+> Claude 70% 的情況根本不 consult graph
+
+那就是它實際 usability 的一部分。
+
+---
+
+# 所以你要跑兩套 Graphify benchmark
+
+## A. Natural
+
+正常安裝 Graphify。
+
+不要在 prompt 提 Graphify：
+
+```text
+Trace the refund flow...
+```
+
+跑 10 題。
+
+記：
+
+```text
+Did Graphify execute?
+yes/no
+```
+
+最後：
+
+```text
+natural invocation rate = 3/10 = 30%
+```
+
+以及所有 session 平均 token / quality。
+
+---
+
+# B. Enforced Graphify
+
+這時才強迫它。
+
+如果你用的是目前 Graphify-Labs 版本，它現在提供：
+
+```bash
+graphify install --project --strict
+```
+
+strict mode 會在 session 第一次直接讀 source 時先阻擋，要求 Claude 先走 graph，再回到一般 soft nudge。:chatgpt-content-reference{index="5"}
+
+然後同樣：
+
+```bash
+claude -p "$Q" \
+  --model sonnet \
+  --effort medium \
+  --permission-mode plan \
+  --output-format stream-json \
+  --verbose \
+  --include-hook-events \
+  --no-session-persistence \
+  | tee bench/logs/q01-graphify-strict.jsonl
+```
+
+然後確認：
+
+```bash
+grep -i graphify bench/logs/q01-graphify-strict.jsonl
+```
+
+### 如果還是沒有真正 query graph
+
+那我甚至不跟 Claude 賭。
+
+直接 deterministic：
+
+```bash
+graphify query "$Q" > bench/q01.graph-context.txt
+```
+
+接著：
+
+```bash
+claude --safe-mode -p \
+  --model sonnet \
+  --effort medium \
+  --permission-mode plan \
+  --output-format stream-json \
+  --verbose \
+  --no-session-persistence \
+  "$(cat <<EOF
+Answer this codebase question:
+
+$Q
+
+Here is pre-retrieved structural context from the code knowledge graph:
+
+$(cat bench/q01.graph-context.txt)
+
+Use this context to choose which source files need verification.
+Verify important claims against source code.
+EOF
+)" \
+| tee bench/logs/q01-graphify-forced.jsonl
+```
+
+**這是最乾淨的 Graphify capability test。**
+
+完全不管 Claude 會不會主動叫 Graphify。
+
+你測的是：
+
+```text
+Claude + pre-retrieved graph context
+vs
+Claude exploring from scratch
+```
+
+---
+
+# 10. Baseline 我會特別用 `--safe-mode`
+
+這點我前面沒有講清楚，但其實很重要。
+
+現在 Claude Code 有：
+
+```bash
+--safe-mode
+```
+
+它會關掉：
+
+- CLAUDE.md
+- skills
+- plugins
+- hooks
+- MCP
+- agents
+- auto memory
+- 其他 customizations
+
+但保留 built-in tools / authentication / model。:chatgpt-content-reference{index="6"}
+
+所以 baseline 最好：
+
+```bash
+claude --safe-mode -p "$Q" \
+  --model sonnet \
+  --effort medium \
+  --permission-mode plan \
+  --output-format stream-json \
+  --verbose \
+  --no-session-persistence \
+  | tee bench/logs/q01-baseline.jsonl
+```
+
+這樣你才不是：
+
+```text
+"Claude without Graphify"
+```
+
+結果 Graphify 的 `CLAUDE.md` rule 還偷偷在裡面。
+
+---
+
+# 11. Understand Anything 怎麼處理？
+
+UA 更簡單。
+
+你要分：
+
+### Natural
+
+正常問：
+
+```text
+How does refund work?
+```
+
+看 Claude 有沒有：
+
+```text
+Skill: understand...
+```
+
+或讀：
+
+```text
+.ua/...
+.understand-anything/...
+```
+
+UA 現在會把 graph 存在 `.understand-anything/knowledge-graph.json`；不同版本也可能使用 `.ua` data dir。:chatgpt-content-reference{index="7"}
+
+可以搜：
+
+```bash
+grep -Ei 'understand|\.ua|\.understand-anything' bench/logs/q01-ua.jsonl
+```
+
+---
+
+### Forced
+
+直接：
+
+```bash
+claude -p "/understand-chat $Q" \
+  --model sonnet \
+  --effort medium \
+  --permission-mode plan \
+  --output-format stream-json \
+  --verbose \
+  --include-hook-events \
+  --forward-subagent-text \
+  --no-session-persistence \
+  | tee bench/logs/q01-ua-forced.jsonl
+```
+
+然後再看 log 裡面到底執行了什麼。
+
+UA 官方目前 intended usage 本來就是：
+
+```text
+/understand-chat How does the payment flow work?
+```
+
+而不是期待普通 prompt 永遠自動 consult graph。:chatgpt-content-reference{index="8"}
+
+---
+
+# 12. 我建議你最後不要只做三組，而是四組
+
+這樣最有洞察：
+
+| Condition | 問的是什麼 |
+|---|---|
+| **Baseline** | Claude 自己探索 repo 的能力 |
+| **Graphify natural** | 裝 Graphify 後，它實際會不會自己用 |
+| **Graphify forced** | 只要確保 graph retrieval 發生，有沒有價值 |
+| **UA `/understand-chat`** | UA intended workflow 的效果 |
+
+這四個其實回答四個不同問題。
+
+---
+
+# 13. 最值得量的 8 個數字
+
+不要量太多。
+
+每一題就記：
+
+```text
+1. input tokens
+2. cache creation tokens
+3. cache read tokens
+4. output tokens
+5. total_cost_usd
+6. num_turns
+7. tool calls
+8. unique source files read
+```
+
+再人工加兩個：
+
+```text
+9. answer fact coverage
+10. unsupported claims
+```
+
+Graphify / UA 再加：
+
+```text
+11. graph actually invoked? yes/no
+```
+
+所以 raw table：
+
+| Q | Mode | Graph used? | Input | Cache read | Output | Turns | Tools | Files | Coverage |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|
+| Q1 | Base | — | 18k | 12k | 1.7k | 12 | 24 | 14 | 83% |
+| Q1 | Graph-natural | No | 17k | 11k | 1.6k | 11 | 22 | 13 | 83% |
+| Q1 | Graph-forced | Yes | 7k | 6k | 1.5k | 6 | 10 | 6 | 92% |
+| Q1 | UA | Yes | 10k | 8k | 1.8k | 8 | 13 | 7 | 92% |
+
+這裡數字只是示意。
+
+但你看到這種結果時，就能講出非常漂亮的結論：
+
+> **「Graph retrieval 本身有效，但自動 adoption 不夠可靠。」**
+
+或者：
+
+> **「它確實減少 navigation，但節省的 token 被 graph context 本身抵銷。」**
+
+或者：
+
+> **「Structural questions 明顯有效，但 business-rule questions 幾乎沒有改善。」**
+
+這才是你 1:1 真正有價值的東西。
+
+---
+
+## 還有一個更嚴謹的 tool-call logging 方法
+
+如果你做到後面發現 UA spawn 很多 subagent，單靠 stream 很難分析，我會再加一個**純 logging 的 `PostToolUse` hook**。
+
+Claude Code 的 `PostToolUse` 保證每次成功執行 tool 後觸發，而且會給你 `session_id`、`tool_name`、`tool_input`、`tool_use_id`、`duration_ms`；hook 沒有回傳 context 的話，不會增加 Claude conversation context。:chatgpt-content-reference{index="9"}
+
+那你就可以得到真正乾淨的：
+
+```text
+timestamp
+session
+tool
+arguments
+duration
+```
+
+event log。
+
+如果你要做這個實驗，我下一步其實最建議直接幫你寫一個很小的：
+
+```text
+bench/
+  run.sh
+  questions.json
+  parse.py
+  results.csv
+```
+
+你只要：
+
+```bash
+./run.sh q01 baseline
+./run.sh q01 graphify
+./run.sh q01 ua
+```
+
+最後自動吐出：
+
+```text
+tokens / cost / turns / Read / Grep / Bash / Graphify calls /
+unique files / duration
+```
+
+的 CSV。**這樣你才真的能在公司 repo 上跑 8～10 題，而不是每題手動 jq。**

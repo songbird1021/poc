@@ -1,0 +1,655 @@
+我反而建議你**先不要再追更多低-star的新工具**。你現在已經有足夠的 experimental subjects：Claude Code、Graphify、Understand Anything。再加工具很容易讓 1:1 變成「工具 survey」，而不是「我驗證了一個 onboarding hypothesis」。
+
+而且你現在真正能產生價值的問題其實很明確：
+
+> **預先建立 codebase knowledge graph，能不能讓 Claude Code 在理解既有系統時，用更少 context / search，得到至少同等甚至更好的答案？**
+
+這完全可以做成一個有數字的 mini benchmark。
+
+---
+
+# 我建議你做的實驗
+
+不要測：
+
+> Graphify 好不好用？
+
+而要測三組：
+
+| Condition | 做法 |
+|---|---|
+| **A. Baseline** | Claude Code 直接讀 repo 回答 |
+| **B. Graphify** | 同樣 Claude Code，但先使用 Graphify graph 作 navigation layer |
+| **C. Understand Anything** | 用 `/understand-chat` 從 UA graph 回答 |
+
+Graphify 官方現在其實就是推薦這種用法：不是讓人看 `graph.html`，而是讓 agent 在 grep 原始檔之前先 query graph；它甚至提供 strict project install，第一次 raw-source read 會先導向 graph。:chatgpt-content-reference{index="0"}
+
+UA 的 `/understand-chat` 也明確要求 agent **不要把整份 graph 塞進 context，而只讀需要的 section**，主要利用 node name/summary，再沿 edge 查 dependency。:chatgpt-content-reference{index="1"}
+
+所以這兩個其實正好可以拿來測你的 hypothesis。
+
+---
+
+# Step 1：先建立 8～12 個「真實 onboarding 問題」
+
+這一步比工具重要。
+
+不要自己發明 synthetic questions；回想你前三個月真的花時間查過什麼。
+
+例如：
+
+1. 「使用者執行 X 後，request 從 API entry point 到 DB write 的完整 flow 是什麼？」
+2. 「什麼情況下 Order status 會從 A 變成 B？」
+3. 「如果修改 `FooService` 的這個 method，哪些功能可能受到影響？」
+4. 「某 feature flag 在哪裡讀取？關掉會影響哪些流程？」
+5. 「這個 cron job 最後會改哪些資料？」
+6. 「這個 event 是誰 publish、誰 consume？」
+7. 「我要修改 business rule X，應該從哪些 files/functions 開始看？」
+8. 「為什麼這裡不能直接 retry？」 ← 故意放一題 graph 可能回答不好的 why-question
+
+最好分成三類：
+
+**Structural**
+→ dependency、call chain、entrypoint
+
+**Business flow**
+→ request → validation → decision → persistence → side effect
+
+**Rationale / domain**
+→ 為什麼、business rule、exception case
+
+這樣你最後很可能會得到一個比「Graphify省多少token」更有價值的結論：
+
+> structural question 節省很多，但 domain rationale 幫助有限。
+
+這正是 onboarding 的 insight。
+
+---
+
+# Step 2：每一題建立 very small ground truth
+
+不需要寫完整標準答案。
+
+只要列出「答案至少應該包含哪些 facts」。
+
+例如 Q1：
+
+```text
+Question:
+How does refund flow work?
+
+Expected facts:
+- entrypoint = RefundController.create()
+- calls RefundService.requestRefund()
+- checks payment status first
+- writes refund record
+- publishes RefundRequested event
+- PaymentWorker consumes event
+- Stripe adapter performs external call
+
+Evidence:
+src/refund/controller.ts
+src/refund/service.ts
+src/payment/worker.ts
+src/payment/stripe.ts
+```
+
+7 個 expected facts。
+
+Claude 答對 6 個：
+
+```text
+coverage = 6 / 7 = 85.7%
+```
+
+如果它多講了兩個不存在的東西：
+
+```text
+unsupported claims = 2
+```
+
+這比你主觀說：
+
+> 「我覺得好像比較好。」
+
+強非常多。
+
+---
+
+# Step 3：把 Claude Code 變成 benchmark runner
+
+Claude Code 有一個非常適合這件事的模式：
+
+```bash
+claude -p "your question" \
+  --output-format json
+```
+
+官方 CLI 支援 `-p` 非互動模式和 JSON output，方便 script 化。:chatgpt-content-reference{index="2"}
+
+JSON 裡可以拿到像：
+
+```json
+{
+  "duration_ms": 12345,
+  "num_turns": 6,
+  "total_cost_usd": 0.04,
+  "usage": {
+    "input_tokens": ...,
+    "cache_creation_input_tokens": ...,
+    "cache_read_input_tokens": ...,
+    "output_tokens": ...
+  }
+}
+```
+
+實際 Claude Code JSON output 也會提供 usage / cost 等 telemetry。:chatgpt-content-reference{index="3"}
+
+因此 baseline 可以直接：
+
+```bash
+claude -p \
+  --model sonnet \
+  --output-format json \
+  --no-session-persistence \
+  "Trace the complete refund flow from API request to external payment provider.
+   Cite the relevant files/functions.
+   Do not modify any files." \
+  > results/baseline-q01.json
+```
+
+每次都 **fresh session**。
+
+千萬不要：
+
+```bash
+claude -c
+```
+
+因為上一題已經幫下一題 warm up context，benchmark 就髒了。
+
+---
+
+# Step 4：Graphify condition
+
+你有兩種方式。
+
+## 方法一：最接近正常使用方式
+
+Graphify 建好：
+
+```bash
+graphify .
+```
+
+然後：
+
+```bash
+graphify install --project --strict
+```
+
+現在 Graphify 的 strict mode 會讓 Claude 第一次要 raw-source read 時先 query graph，再回 source 驗證。:chatgpt-content-reference{index="4"}
+
+之後**問完全相同的 question**：
+
+```bash
+claude -p \
+  --model sonnet \
+  --output-format json \
+  --no-session-persistence \
+  "Trace the complete refund flow from API request to external payment provider.
+   Cite the relevant files/functions.
+   Do not modify any files." \
+  > results/graphify-q01.json
+```
+
+這是我最推薦的測法。
+
+因為它測的是：
+
+> **「正常使用 Graphify 後，Claude Code 的 agent behavior 有沒有變好？」**
+
+而不是單純測 graph query 本身。
+
+---
+
+## 方法二：你想更科學地 isolate retrieval
+
+你也可以直接：
+
+```bash
+graphify query "How does the refund flow work?"
+```
+
+Graphify 現在有：
+
+```bash
+graphify query "<question>"
+graphify explain "<concept>"
+graphify path "<A>" "<B>"
+```
+
+來從 `graph.json` 抓 scoped subgraph，而不是整份 graph。:chatgpt-content-reference{index="5"}
+
+例如：
+
+```bash
+GRAPH_CONTEXT=$(graphify query \
+  "Trace refund from API request to external provider")
+
+claude -p \
+  --output-format json \
+  "Using this graph context:
+
+  $GRAPH_CONTEXT
+
+  Answer:
+  Trace the complete refund flow.
+  Verify important claims against source files.
+  Cite files/functions." \
+  > results/graphify-controlled-q01.json
+```
+
+這個 experiment 回答的是另一個問題：
+
+> **「同樣 Claude，如果先給一份小而 relevant 的 graph context，是不是比自己 search repo 有效率？」**
+
+其實這個實驗很漂亮。
+
+---
+
+# Step 5：Understand Anything condition
+
+不要叫 Claude 直接：
+
+```text
+read .ua/knowledge-graph.json
+```
+
+這很可能反而浪費一大堆 token。
+
+UA 自己就是特別避免這件事。
+
+它的 `/understand-chat` 明確要求：
+
+> only read sections you need，不要 dump whole graph into context。:chatgpt-content-reference{index="6"}
+
+所以用：
+
+```bash
+claude -p \
+  --output-format json \
+  "/understand-chat Trace the complete refund flow from API request to external payment provider. Cite files/functions." \
+  > results/ua-q01.json
+```
+
+這是 UA 的 intended usage。
+
+另外你特別在乎 **business logic** 的話，我會先跑：
+
+```text
+/understand-domain
+```
+
+因為 UA 會另外建立：
+
+```text
+.ua/domain-graph.json
+```
+
+domain graph 專門表示：
+
+```text
+domain
+  └── flow
+       └── step
+```
+
+而不是單純 file/function dependency。UA 本身就把 structural graph 和 business-domain graph 分開。:chatgpt-content-reference{index="7"}
+
+這其實非常適合你目前的問題。
+
+---
+
+# Step 6：token 不要只看一個數字
+
+這裡有一個容易踩坑的地方。
+
+不要只寫：
+
+> Claude用了 15,000 tokens。
+
+Claude Code 有：
+
+```text
+input_tokens
+cache_creation_input_tokens
+cache_read_input_tokens
+output_tokens
+```
+
+它們成本不一樣。
+
+所以 spreadsheet 最好留：
+
+| Q | Condition | input | cache create | cache read | output | turns | time | cost |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Q1 | Claude | 12k | 8k | 3k | 800 | 14 | 48s | … |
+| Q1 | Graphify | 4k | 2k | 2k | 750 | 6 | 21s | … |
+| Q1 | UA | 6k | 3k | 2k | 820 | 8 | 27s | … |
+
+然後報告兩個數字：
+
+```text
+Total context processed
+= input
++ cache_creation
++ cache_read
++ output
+```
+
+以及 Claude Code 提供的：
+
+```text
+total_cost_usd
+```
+
+如果你用訂閱制導致 dollar figure 不可靠，就**直接報 token breakdown**，不要硬換成錢。
+
+---
+
+# 還有一個我很推薦的 metric：Tool Calls
+
+這個甚至比 token 更能解釋「為什麼 Graph 有效」。
+
+改成：
+
+```bash
+claude -p \
+  --output-format stream-json \
+  --verbose \
+  "..." \
+  > q01.jsonl
+```
+
+Claude Code 的 stream JSON 會包含 agent 的 tool calls。:chatgpt-content-reference{index="8"}
+
+你可以數：
+
+```text
+Read
+Grep
+Glob
+Bash
+graph query
+```
+
+例如最後得到：
+
+| | Baseline | Graphify |
+|---|---:|---:|
+| Grep | 12 | 2 |
+| Glob | 5 | 0 |
+| Read | 18 | 7 |
+| files opened | 15 | 6 |
+| turns | 19 | 8 |
+| tokens | 31k | 12k |
+| accuracy | 78% | 91% |
+
+這個故事就非常完整：
+
+> Graphify 不是讓 Claude「變聰明」，而是改善 **navigation**，所以少做很多 blind grep/read，進而降低 context consumption。
+
+Graphify 社群那個實際案例就是類似結果：使用者在 10 個 project 上加入「graph first, grep second」規則後，一題 impact-analysis 從約 **15k → 4k tokens**，而且 graph 版本找到了 baseline 漏掉的 dependency。這只是單一案例，不該當作普遍 benchmark，但很適合當你自己實驗的 reference design。:chatgpt-content-reference{index="9"}
+
+---
+
+# Step 7：Quality 怎麼變成明確數字
+
+我會只用三個 metric。
+
+### ① Coverage
+
+```text
+correct expected facts / expected facts
+```
+
+例如：
+
+```text
+6 / 7 = 86%
+```
+
+---
+
+### ② Hallucination / Unsupported claims
+
+例如 Claude 說：
+
+> RefundService calls RiskEngine
+
+但其實沒有。
+
+記：
+
+```text
+Unsupported claims: 1
+```
+
+最後：
+
+```text
+unsupported claim rate
+= unsupported factual claims / all factual claims
+```
+
+---
+
+### ③ Source grounding
+
+要求 Claude每個重要 claim 都給：
+
+```text
+file
+function/class
+```
+
+然後驗證。
+
+```text
+valid evidence / evidence citations
+```
+
+例如：
+
+```text
+8 / 10 = 80%
+```
+
+---
+
+所以你的最終 quality score **甚至不需要做一個黑箱「8.7/10」**。
+
+直接報：
+
+```text
+Fact coverage       88% → 94%
+Unsupported claims  12% → 4%
+Valid evidence      76% → 93%
+```
+
+主管一看就懂。
+
+---
+
+# 還要算一個很重要的東西：Index build cost
+
+這對 UA 特別重要。
+
+UA 官方自己就警告，第一次 `/understand` 在大型 codebase 會消耗大量 tokens，後續才是 incremental。:chatgpt-content-reference{index="10"}
+
+甚至到 2026 年 8 月，UA issue 裡仍有人指出目前缺乏完整公開的 end-to-end token/cost benchmark。:chatgpt-content-reference{index="11"}
+
+所以千萬不要只報：
+
+```text
+query:
+30k → 8k tokens
+```
+
+卻忽略：
+
+```text
+建立 UA graph 花了 2M tokens
+```
+
+你要分成：
+
+**Upfront**
+
+```text
+Graph build time
+Graph build tokens
+Graph build cost
+```
+
+**Per-query**
+
+```text
+answer tokens
+answer latency
+answer quality
+```
+
+然後算：
+
+```text
+break-even questions
+=
+graph build cost
+/
+(baseline query cost - graph query cost)
+```
+
+假設：
+
+```text
+UA build = 600k tokens
+
+Claude normal = 30k / question
+UA = 10k / question
+
+saving = 20k / question
+```
+
+那：
+
+```text
+600k / 20k = 30 questions
+```
+
+也就是：
+
+> **大概要問 30 題以後，UA 的 initialization cost 才攤平。**
+
+這個數字超適合 1:1。
+
+---
+
+# Graphify 在這點反而有一個有趣優勢
+
+Graphify 現在的 code graph 是 **tree-sitter local deterministic AST parsing**，官方稱 code graph build 不需要 LLM credits；docs/PDF/media semantic pass 才需要 model。:chatgpt-content-reference{index="12"}
+
+所以你可能最後得到：
+
+```text
+                 Claude    Graphify    UA
+initial cost        0        low       high
+query tokens       high      low       medium
+structural QA      good      best      good
+business QA        ???       ???       ???
+```
+
+當然數字要你自己的 repo 實測。
+
+但這就是很好的 research question。
+
+---
+
+# 我會怎麼做你的實驗規模
+
+不用搞成論文。
+
+我會做：
+
+**10 questions × 3 conditions × 2 runs = 60 runs**
+
+如果嫌多：
+
+**8 questions × 3 conditions = 24 runs**
+
+先看看 signal 明不明顯。
+
+而且一定：
+
+```text
+same git commit
+same Claude Code version
+same model
+same prompt
+fresh session
+same tool permissions
+same machine
+```
+
+先記：
+
+```bash
+git rev-parse HEAD
+claude --version
+```
+
+不要今天測 baseline，下週 Claude Code 升級後才測 Graphify。Anthropic 自己在 2026 年就曾因 Claude Code runtime/change 導致 quality regressions，所以 pin environment 很重要。:chatgpt-content-reference{index="13"}
+
+---
+
+# 你的 benchmark table 最後就長這樣
+
+| Metric | Claude | +Graphify | +UA |
+|---|---:|---:|---:|
+| Fact coverage | 82% | **93%** | 91% |
+| Unsupported claims | 9% | **3%** | 4% |
+| Source grounding | 77% | **94%** | 92% |
+| Avg processed tokens | 28k | **11k** | 14k |
+| Avg agent turns | 14 | **6** | 7 |
+| Avg source files read | 13 | **5** | 6 |
+| Avg latency | 42s | **21s** | 27s |
+| One-time indexing | 0 | X | Y |
+
+**這裡的數字是示意，不是目前產品 benchmark。**
+
+你真正要帶去 1:1 的就是你自己測出來的這張表。
+
+---
+
+## 至於那些 star 少的其他專案
+
+我現在會先停。
+
+不是說它們沒價值，而是你目前已經有更好的研究題了。
+
+尤其 UA 社群自己也有人提出一個和你幾乎一模一樣的方向：大型 monorepo 的 full analysis / retrieval token 很高，因此有人建議先用 deterministic/local code graph 做 indexing，再把它當 targeted retrieval layer 給 LLM 使用。:chatgpt-content-reference{index="14"}
+
+換句話說，你現在其實碰到的是一個**真正還沒完全解掉的工程問題**：
+
+> **LLM 不應該每次重新「理解整個 codebase」；應該先建立便宜、persistent、queryable 的 structural memory，然後只把與當前問題有關的 subgraph/context 餵給模型。**
+
+這比去試第 4、5、6 個 GitHub project 更值得做。
+
+而你的 1:1 最後可以濃縮成一句：
+
+> **「我想驗證 AI-assisted onboarding 真正的 leverage 是不是不在更大的 context window，而是在更好的 context retrieval。我會用實際 onboarding questions，比較 baseline Claude Code、Graphify 和 Understand Anything 的 answer accuracy、source grounding、token consumption、tool calls 和 indexing amortization。」**
+
+這樣就已經不是「我玩了一些 AI tools」。
+
+而是一個很像 **engineering productivity experiment** 的東西。

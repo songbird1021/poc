@@ -1,0 +1,99 @@
+我會把 1-1 收斂成一個很簡單的故事，不再把它講成「我在研究一堆 AI 工具」。
+
+你的主題其實可以是：
+
+> **我在接 legacy 系統時，想找一個更有效率的方法建立 domain understanding。Claude Code 已經幫很多，但我進一步測了 systematic code-understanding 工具，目前得到一些 preliminary learning。**
+
+然後只講三件事。
+
+### 1. 我遇到的真實問題
+
+不是「code 看不懂」，而是：
+
+> code 通常可以讓我知道系統**怎麼運作**，但有些 domain concept 的**意義與設計理由**不容易從 code 本身看出來。
+
+你可以拿 Golden / Second Form 當例子：
+
+- 我可以 trace 出哪些 golden 能被 search 到、哪些最後不能選。
+- 我可以 trace 出 create 時哪些值被計算。
+- 但「為什麼 golden eligibility 是這樣定義」、「某張 table 在 domain 上代表什麼」、「為什麼是這樣比較」這類問題，光看 implementation 不一定能完整回答。
+
+這比「legacy code 很難懂」精準很多。
+
+### 2. 我試了什麼，目前學到什麼
+
+先講 Claude Code：
+
+> Claude Code 對 code exploration 很有幫助，尤其 trace flow、找相關 implementation、理解資料怎麼走。
+
+然後接 UA：
+
+> 我進一步想知道，有沒有辦法把這種理解變得更系統化、可累積，所以試了 Understand Anything。現在大概完成七成左右的評估。
+
+重點是不要說「UA 不行」，而是：
+
+> 它確實會透過 static analysis + LLM 去整理 architecture、domain、flow，也嘗試推 business meaning。  
+> 但以目前的使用結果，我還沒有看到它相較直接使用 Claude Code 有非常明顯的增益，尤其是 domain rationale 這一層。
+
+然後你的 learning：
+
+> **我現在比較傾向認為，問題不只是「怎麼分析 code」，而是 business knowledge 本身散落在 code、文件、歷史脈絡和 domain knowledge 裡。**
+
+這就是你研究到現在最值得講的東西。
+
+### 3. 下一步不要再講一堆工具
+
+你下一步就一句：
+
+> **我想用一兩個真實案例驗證：把既有文件也納入 context，是否能明顯改善 AI 對 domain meaning 的理解。**
+
+例如直接拿你正在做的：
+
+- Golden selectable / eligibility
+- Search/Create coupling
+
+比較：
+
+> Claude Code + code  
+> vs  
+> Claude Code + code + existing docs
+
+UA 就繼續補完目前跟這兩個 case 有關的部分。
+
+然後收尾：
+
+> 如果 richer context 有明顯改善，那下一步才值得研究要不要用 specialized tool 自動管理這些 context；如果沒有，那可能目前最 practical 的方式就是把 AI 當成 code investigation accelerator，而不是期待它自動建立完整 business knowledge。
+
+這就夠了。
+
+---
+
+如果你希望是一段可以直接在 1-1 講的，我會講成這樣：
+
+最近我在接手這塊 legacy system 的時候，有特別想了一下怎麼降低理解既有系統的成本。
+
+我發現其實 code 本身大部分是可以 trace 的。像 Golden / Second Form 的流程，我通常可以從程式碼追出資料怎麼走、哪些條件會被判斷、create 的時候哪些值會被計算。
+
+比較困難的是再上一層的 domain meaning，例如某張 table 在業務上為什麼需要存在、為什麼 Golden 跟 Second 要用這種方式比較、某些 eligibility rule 背後真正代表什麼。這些資訊不一定完整存在 code 裡。
+
+Claude Code 對第一層其實已經幫助很大，可以很快幫我 trace flow、找 implementation 和相關 dependency。
+
+因為我希望這些理解不要每次都變成一次性的 investigation，所以我另外研究了 Understand Anything 這類比較 systematic 的 codebase understanding 工具。目前大概完成七成左右的評估。
+
+它確實不是單純畫 graph，而是會透過 static analysis 加上 LLM 去整理 architecture、domain、business flow，也嘗試推論 business meaning。不過以我目前的使用結果，還沒有看到它相較直接使用 Claude Code 有非常明顯的增益，尤其是「為什麼系統要這樣設計」這一層，很多時候還是缺少足夠 context。
+
+所以我目前最大的 learning 是：這個問題可能不只是 code analysis 做得夠不夠好，而是 business knowledge 本身就分散在 code、既有文件、歷史修改以及 domain knowledge 裡。
+
+我接下來想做一個比較小的驗證：直接拿我現在遇到的 Golden eligibility 和 Search/Create coupling 這兩個真實 case，比較只看 code，和加入現有專案文件之後，AI 對 domain context 的理解有沒有明顯改善。
+
+如果有，我才會再往下一步看，要不要用 specialized tool 幫忙做 context aggregation、knowledge persistence 或 incremental update；如果沒有，那目前最實際的定位可能就是把 AI 當成加速 legacy code investigation 的工具。
+
+這樣你的 1-1 不需要有「最終答案」。
+
+你只需要做到三件事：
+
+**我遇到什麼問題。  
+我做了什麼探索。  
+這個探索讓我對問題的理解改變了什麼。**
+
+這已經足夠是一個完整的 1-1 update。

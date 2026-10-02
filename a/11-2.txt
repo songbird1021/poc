@@ -1,0 +1,61 @@
+有，但**價值不在「你研究了某個 AI 工具」**，而在你有沒有把這次研究變成一個能幫團隊做判斷的結論。
+
+如果最後只是：
+
+> 我試了 Understand Anything，覺得普通。
+
+那價值確實不高。
+
+但如果你能得到：
+
+> 我們目前 onboarding / 接 legacy code 的真正 bottleneck，不是找不到 code，而是缺少 business context。Claude Code 已經能顯著改善 code exploration；自動 knowledge graph 對這個問題的額外增益目前有限。下一步應該驗證「加入文件與歷史 context」是否比「建更完整的 code graph」有效。
+
+這就是有價值的研究。
+
+因為它幫團隊排除了至少一條看起來很誘人的路：
+
+**「只要把 repo 全部建成 graph，就能解決 knowledge transfer。」**
+
+如果沒有人實際試，團隊很容易花更多時間、甚至花錢導入之後才發現效果有限。
+
+而且你實際在碰的是一個很正常的工程問題：
+
+> 新人接 subsystem 的 ramp-up cost 很高，知識集中在資深工程師身上。
+
+AI 出現之後，值得問的問題本來就不是只有：
+
+> 「Claude Code 好不好用？」
+
+而是：
+
+> **「Claude Code 能不能改變團隊保存和傳遞 engineering knowledge 的方式？」**
+
+這件事其實很值得研究。
+
+不過我會控制 scope。你現在已經研究到足夠形成 hypothesis 了，不需要再花兩週做 AI tooling landscape survey。
+
+我會再做**一個很小的實驗就收尾**：
+
+- 挑一個你已經弄懂的 legacy feature。
+- 準備 5 個你剛接手時很難回答的問題。
+- 測 Claude Code only。
+- 再把現有文件 / git history 等 context 加進去測一次。
+- 記錄答案正確度，以及你還需不需要去問資深工程師。
+
+如果 richer context 明顯改善，你就有下一步。
+
+如果沒有，你也可以很合理地結束研究：
+
+> **目前 AI 最成熟的價值是加速 investigation，而不是自動維護 business knowledge。**
+
+這也是一個很好的答案。
+
+其實從主管角度，我會認為最有價值的不是你最後推薦哪個工具，而是你能回答三件事情：
+
+**我們現在的痛點到底是什麼？  
+AI 已經能解掉哪一部分？  
+剩下的問題值不值得投入更多成本解？**
+
+你現在已經快走到第三題了。
+
+所以我不建議你因為「UA 沒有 wow」就覺得前面的時間白花。反而現在最重要的是**停在對的地方，不要為了讓研究看起來完整而繼續試十套工具。**

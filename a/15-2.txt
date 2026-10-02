@@ -1,0 +1,73 @@
+那就不要把實驗設計成「我先知道正確答案，再考 AI」。那會讓你自己先卡死。
+
+你現在的情況更適合測 **「它有沒有幫我降低理解成本」**，而不是測「它答對幾分」。
+
+可以改成這樣：
+
+- 選你最近真的接過的一個 task / bug / feature
+- 不需要完全懂整個 domain
+- 只記錄當時你實際做過哪些探索：
+  - 找了哪些檔案
+  - 看了哪些 tests
+  - 查了哪些 docs
+  - 最後改了哪些地方
+  - 哪些地方你曾經不確定
+
+然後讓三種 setup 去處理同一個任務：
+
+1. Claude Code only  
+2. Claude Code + docs  
+3. Understand Anything
+
+你評的不是「business logic 正確率」，而是：
+
+| 評估點 | 問法 |
+|---|---|
+| 找對地方 | 它有沒有很快找到你最後真的改到/讀到的 code？ |
+| 建立 mental model | 看完它的說明，你有沒有比較知道整體 flow？ |
+| 找 edge cases | 有沒有主動指出 tests / branches / exception？ |
+| Evidence | 每個重要說法能不能指回 code/docs？ |
+| 區分事實與推論 | 它會不會把「我推測」講成「系統就是這樣」？ |
+| 實際省力 | 如果當初有這個，你會不會少花一些時間？ |
+
+這樣你完全不需要麻煩前輩。
+
+而且我覺得對你來說，**「是否區分 evidence 跟 inference」甚至比 absolute correctness 更重要。**
+
+因為你現在最怕的其實就是：
+
+> 業務很抽象，我也不確定答案，AI 卻講得很像真的。
+
+所以你可以故意問這類問題：
+
+> 「請解釋這個模組負責的 business responsibility。每個結論都標示是：
+> 1. code 可以直接證明
+> 2. 文件描述
+> 3. 根據結構推測」
+
+或者：
+
+> 「這個流程裡有哪些 business rules？請給每一條 rule 對應的 source code / test / document evidence；沒有足夠 evidence 的不要當成事實。」
+
+這反而非常貼近你真正的工作情境。
+
+你甚至可以把研究問題改成：
+
+> **當工程師自己也不熟悉 legacy domain 時，這些工具能不能產生一個「可驗證的初步 mental model」，讓我更有效率地繼續 investigation？**
+
+這比「AI 能不能正確理解完整 business logic」實際很多。
+
+而且主管也比較容易接受，因為你的目標不是宣稱 AI 取代 domain expert，而是：
+
+> **能不能讓一個剛接手的人更快從「完全不知道」走到「知道該去哪裡看、哪些地方要確認」。**
+
+我覺得你這週就測這個就好。
+
+最後你甚至不需要得出「Claude + docs 是 82 分、UA 是 76 分」這種假精確結論。你可以得到像：
+
+> Claude Code 很適合快速探索，但需要我主動拆問題。  
+> 加入 docs 後，對 terminology / historical intent 有幫助，但 stale docs 會造成混淆。  
+> UA 能提供比較系統化的 overview，但對我真正需要確認的抽象 business meaning，仍然需要回到 evidence。  
+> 所以目前最有價值的能力不是「自動生成完整 business model」，而是「快速形成有來源、可驗證的 mental model」。
+
+這個結論已經足夠拿去 1-1，而且不需要再抓一個前輩陪你做 benchmark。

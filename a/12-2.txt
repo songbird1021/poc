@@ -1,0 +1,153 @@
+對，你這個提醒是對的。把 Understand Anything / Repowise / Unblocked 這類東西概括成「建 graph」太粗了。它們真正做的是一整套 **codebase understanding pipeline**：結構化分析、索引、LLM 推理、domain/flow synthesis、history/docs context、持久化知識、查詢介面，有些還做 provenance、incremental update、conflict/staleness 處理。
+
+所以你現在其實不是在研究：
+
+> 「knowledge graph 有沒有用？」
+
+而是在研究：
+
+> **「要怎麼讓 AI 對 legacy system 的理解，從一次性的 code Q&A，變成更完整、可重用、可維護的工程知識？」**
+
+這樣 scope 就清楚很多。
+
+### 我建議你不要同時研究「工具 + 文件 + Claude + graph + knowledge management」全部
+
+那會爆掉，而且最後主管很難知道你的結論是什麼。
+
+我會把研究問題縮成一個：
+
+> **對 legacy code 的 business logic understanding，加入系統化 context management，是否比單純 Claude Code 問答有明顯增益？**
+
+然後只做兩層比較。
+
+| Setup | 你要驗證什麼 |
+|---|---|
+| **A. Claude Code + repo** | 現在的 baseline 到底已經多強 |
+| **B. Claude Code + repo + existing docs/context** | 問題是不是主要缺 contextual knowledge |
+| **C. Specialized tool** | 只有 B 有效時，才值得問「需不需要工具把 B 自動化」 |
+
+這個順序很重要。
+
+因為假設：
+
+### 情況 1：Claude + 文件就明顯變好
+
+那你學到的是：
+
+> **context 很重要。**
+
+下一個問題才是：
+
+> 文件要不要人工維護？能不能自動同步？要不要用 UA / Repowise / 其他系統管理？
+
+這時 specialized tool 才有合理的存在理由。
+
+---
+
+### 情況 2：Claude + 文件也沒什麼改善
+
+那你根本不用急著研究一堆工具。
+
+因為這表示 bottleneck 可能不是：
+
+> context 沒有被塞進去
+
+而是：
+
+> 原始資訊本身就不存在、過時、矛盾，或 business knowledge 只在人腦裡。
+
+這時換一個更漂亮的 indexing / knowledge tool 也未必有用。
+
+---
+
+### 情況 3：Claude + 文件有效，但維護成本很高
+
+這其實是最 interesting 的情況。
+
+因為你一開始列的痛點就全部回來了：
+
+- 哪些文件要放進 context？
+- code 改了，哪些文件 stale？
+- 每次要不要重新 index？
+- 過去確認過的回答怎麼保存？
+- 不同 source 衝突時信誰？
+
+**這才是 specialized tool 真正應該解的問題。**
+
+不是「它回答得比 Claude 聰明」。
+
+而是：
+
+> **它有沒有把 context acquisition / organization / freshness / reuse 自動化。**
+
+這也是你評估 Understand Anything 時可以換的角度。
+
+不要只問：
+
+> 「UA 解釋 business flow 有沒有比 Claude 好？」
+
+還可以問：
+
+> 「UA 是否替我省掉了 context preparation 與 maintenance 的工作？」
+
+這其實更符合你最初想找現成工具的理由。
+
+---
+
+## 所以我會把你的 scope 定在這裡
+
+你現在不需要研究整個市場。
+
+做一個 **三段式小實驗** 就夠：
+
+**Baseline：Claude Code**
+> 只給 repo，問 5 個真實問題。
+
+**Richer context：Claude Code + 文件**
+> 同樣 5 題，把你們現有 project docs / README / design doc 放進 context。
+
+**Systematic tool：Understand Anything**
+> 看它在「自動找 context、組織 context、產生 reusable understanding」上有沒有額外價值。
+
+這樣你不是在比較：
+
+> Claude vs UA 誰比較聰明。
+
+而是在比較：
+
+> **manual context workflow vs systematic context workflow。**
+
+這個比較公平很多。
+
+而且 UA 就算最後答案跟 Claude 差不多，也可能在其他地方有價值，例如：
+
+> 我不用自己找那 5 份文件；  
+> 我不用自己想完整 flow 要查哪些東西；  
+> 下次不用全部重做；  
+> code 更新後某些理解可以增量更新。
+
+如果這些也沒有明顯幫助，那你才真的有理由說：
+
+> **目前 specialized codebase-understanding layer 的 marginal value 不夠大。**
+
+這個結論會比「圖看起來沒什麼用」強非常多。
+
+---
+
+我甚至會把你 1-1 的研究問題直接改成一句：
+
+> **Claude Code 已經能很好地回答 code 問題；我想驗證的是，額外做 context aggregation、knowledge persistence 和 incremental maintenance，是否值得。**
+
+這樣 UA、文件、Repowise 都只是**實驗手段**，不會變成你的研究主題本身。
+
+而我會建議你目前先做到 **Claude Code + 文件 vs Claude Code baseline**，再把 UA 補到你覺得足以公平評估的程度，就收斂。
+
+**先不要再加 Repowise。**
+
+除非這兩個實驗告訴你：
+
+> 「對，rich context 明顯有效，但人工整理真的太麻煩。」
+
+那時候你再去找 Repowise / 其他工具，就有非常清楚的理由了。
+
+這樣 scope 最健康，也最容易跟主管講清楚。

@@ -1,0 +1,39 @@
+我根據我的印象 跟你說一些東西
+
+我們做的是協助公司內部的半導體機台驗機系統
+
+分為process/metrology tool
+
+然後每個又有golden/second form
+
+同時又有A form跟B form（a跟機台本身能力有關 b跟製程有關）
+
+可以理解為golden就是模範生&#x20;
+
+golden a form就是模範機台在某些check item下的表現
+
+second form就是second tool要去對標golden tool，看表現差距多少
+
+表現沒有差很多才能release
+
+到這邊還懂嗎
+
+這是基本背景
+
+
+
+我在改的時候遇到很大的問題
+
+包含
+
+1. 使用者要開second form第一步要先選要瞄準的golden
+
+但是前端有時候search完會有golden tool列表 但是有的不能選
+
+造成user還要回報 開單
+
+
+
+2. search/create裡面的資料結構很耦合 加上有些值是create之後才計算出來/拉資料出來的
+
+其實這些東西使用者在真的create form instance前就應該可以看到 但是那個create的程式碼太臭了 又跟search耦合再一起 很難把那些值拉到前面 精準切出來

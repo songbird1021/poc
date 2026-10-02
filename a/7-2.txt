@@ -1,0 +1,275 @@
+先回答最重要的：**你現在 UA 只有測到約 70%，我會把報告措辭從「效果不好」改成「目前沒有看到足夠明顯的增益」**。這樣比較準確，也比較站得住腳。
+
+### 1. ADR 是什麼？
+
+ADR = **Architecture Decision Record，架構決策紀錄**。
+
+它不是一般「系統怎麼運作」的文件，而是在記：
+
+> **我們當初為什麼決定這樣做？**
+
+例如 legacy code 裡你看到：
+
+```text
+payment retry 最多只能 3 次
+```
+
+Code 可以告訴你「現在是 3 次」。
+
+一般 architecture doc 可能告訴你：
+
+> Payment service 遇到 timeout 會 retry。
+
+但 ADR 會長得比較像：
+
+> 2024-06：Payment Retry Policy  
+>   
+> Context：原本 retry 5 次，但會造成某支付商重複扣款風險。  
+> Decision：改成最多 3 次。  
+> Alternatives：保留 5 次 + idempotency handling。  
+> Reason：短期修改風險較小。  
+> Consequence：部分 transient failure 成功率可能降低。
+
+所以對你現在研究的問題，ADR 超級重要。
+
+因為你真正缺的是：
+
+**code 告訴你 WHAT**  
+**git/history 有時能推 HOW IT CHANGED**  
+**ADR 希望保留 WHY**
+
+這也是為什麼我前面會一直說，單從 code 用 LLM 推 business meaning，天生有資訊上限。
+
+---
+
+## 2. UA 只測 70%，那現在可以下什麼結論？
+
+我不建議你跟主管說：
+
+> 「我測了 Understand Anything，效果有限，所以它不行。」
+
+因為如果主管追問：
+
+> 「你 domain mode 有完整跑嗎？」  
+> 「文件有放進去嗎？」  
+> 「是不是有什麼功能沒用到？」
+
+你會比較難回答。
+
+比較精準的說法是：
+
+我目前大概完成了七成左右的 Understand Anything 評估，所以還不會下結論說這個工具沒有用。
+
+目前的 preliminary finding 是：它確實有嘗試透過 code structure 加上 LLM 推理出 domain、flow 和 business meaning，不只是單純畫 dependency graph。
+
+但以我目前實際拿來理解陌生 legacy code 的體驗，它產生的資訊還沒有明顯降低我理解 business logic 的成本。很多時候我看到它整理出的 graph 或 description 之後，還是需要回到 source code 或再問 Claude 才能真正確認。
+
+所以目前我的問題不是「它做不到」，而是「相較直接使用 Claude Code，它提供的額外價值到底有多大」。這部分我還想用幾個具體的 business-logic 問題再驗證一下。
+
+這其實比「UA 不好用」更專業。
+
+而且你**不用真的測到 100% 每一個 feature**。
+
+你只需要把跟你的 hypothesis 有關的東西測完整：
+
+**選一個你熟悉答案的 subsystem → 跑 `/understand-domain` → 問 5 個具體問題 → 看 UA 的產物能不能讓你比 Claude Code baseline 更快得到正確答案。**
+
+做到這裡，如果仍然沒有明顯增益，你就有足夠 evidence 跟主管講。
+
+不需要研究它的每個按鈕。
+
+---
+
+# 3. Repowise 評價怎麼樣？
+
+我重新查了一輪現在（2026-09）的資料。
+
+我的評價會是：
+
+> **目前這一波裡面，Repowise 是我比較願意讓你再花半天～一天實驗的；但我不會把它描述成「已經被證明能解 legacy business knowledge」。**
+
+原因是它跟 UA 的思路其實有一個滿重要的差別。
+
+UA 比較像：
+
+> **Code → 分析 → LLM 推理 → 幫你形成一張理解模型**
+
+Repowise 比較像：
+
+> **Code + dependency + git + docs + decisions → 建 evidence layer → 讓 agent 查**
+
+它現在會 index graph、git history、documentation、architectural decisions、tests/code health，然後透過 MCP 提供給 Claude Code/Codex。:chatgpt-content-reference{index="0"}
+
+### 對你最有意思的是它的 `why`
+
+它甚至直接有：
+
+```bash
+repowise why "why the retry cap?" --target src/api/client.py
+```
+
+它會先找 architectural decisions；沒有的話找 git archaeology；再沒有的話才從 source 裡的 rationale comment 找線索。:chatgpt-content-reference{index="1"}
+
+這就比：
+
+> 「LLM 看 code 猜猜看為什麼」
+
+更符合你真正遇到的問題。
+
+而且 Repowise 可以從：
+
+- `WHY:` / `DECISION:` code marker
+- git commit message
+- ADR
+- PR / squash merge description
+- coding-agent session
+
+擷取 decision candidate。:chatgpt-content-reference{index="2"}
+
+甚至 Claude Code conversation 裡，如果出現：
+
+> 「不，我們不能這樣做，因為 XXX。」
+
+這種 correction / explicit decision，Repowise 有機制把它變成 candidate；**但不是直接當真理，還要有人 confirm，才成為正式 decision**。:chatgpt-content-reference{index="3"}
+
+這一點我覺得非常接近我們前面講的：
+
+> **AI investigation → human verification → durable knowledge**
+
+所以從「產品方向」來說，我覺得它比 UA 更貼近你現在 refine 出來的問題。
+
+---
+
+## 但 Repowise 的「評價」目前要打折看
+
+它現在 GitHub 大約 **7k stars**，開發很活躍，文件也相當完整。:chatgpt-content-reference{index="4"}
+
+但是我找下來，**真正獨立、長期使用的心得還不算多。**
+
+目前公開 benchmark 最完整的一份，是最近拿 Repowise、CodeGraph、Serena、Graphify 等一起跑 Django 類問題的測試。
+
+結果滿有意思：
+
+- Repowise：agent output tokens 約 **-31.6%**
+- CodeGraph：約 -24.4%
+- Serena：約 -14.8%
+- Graphify：約 -8.9%
+
+Repowise 的 retrieval test 也抓到約 **87.6% 真正 fix 有碰到的 files**。:chatgpt-content-reference{index="5"}
+
+但最重要的其實是另一個結果：
+
+> **沒有任何工具，包括 Repowise，在 answer quality 上產生有統計意義的提升。**
+
+全部跟 bare agent 差異都落在 evaluator noise 裡。:chatgpt-content-reference{index="6"}
+
+而且這份 benchmark 的作者**自己就是 Repowise 的開發者**。值得肯定的是他有直接 disclosure，而且 raw harness/data 公開；但我還是會把它當「vendor-associated evidence」，而不是獨立驗證。:chatgpt-content-reference{index="7"}
+
+---
+
+### Claude Code 上還有一個很有趣的問題
+
+官方/作者跑 Claude Code 時，有一次 Repowise output token 約少 **15.9%**。
+
+但他們自己也寫得很清楚：
+
+同樣 setup 後來重跑，Claude 對這些 MCP tools 的使用率可以從 15/15，掉成 4/15、3/15。
+
+也就是：
+
+> **tool 很強是一件事；Claude 願不願意 call 它又是另一件事。** :chatgpt-content-reference{index="8"}
+
+
+這跟我們前面談 Graphify 時看到的現象是一樣的。
+
+---
+
+## 有沒有真正第三方的正面評價？
+
+有，但數量還不多。
+
+我找到一個第三方實測，把它放進自己的 codebase 使用；他的結論大致是：
+
+> 即使沒有開 LLM-generated wiki / decisions，Repowise 的基本 index 已經可以給出有用答案，而且 Git analysis 是他們特別滿意的部分。
+
+但也遇到實際限制：他們專案使用 Antlers template language，Repowise 不理解，因此那一塊 dependency 完全漏掉。作者也明確說他們沒有完整測 wiki / decision layer。:chatgpt-content-reference{index="9"}
+
+這反而是一個我比較信任的 review pattern：
+
+不是「OMG 10x productivity」，
+
+而是：
+
+> 某些 layer 很有用，某些語言/框架就會破。
+
+---
+
+# 還有一件事我要修正我前面講 Repowise 的地方
+
+我之前跟你說：
+
+> Repowise 可以拿舊文件跟 code 看哪些已經 stale。
+
+**這句講得有點太廣了。**
+
+它確實有 `doc-drift`，但目前 deterministic 能檢查的主要是：
+
+- 文件提到的 path 還存不存在
+- link
+- heading / anchor
+- command / Make target 等
+
+官方文件自己也明確提醒：
+
+> 它只能檢查能 resolve 的 reference；跑出 clean **不代表文件每一句話都是正確的**。:chatgpt-content-reference{index="10"}
+
+所以：
+
+```text
+文件：退款 7 天內都可以申請
+code：現在改成 14 天
+```
+
+**我目前不會期待 `repowise doc-drift` 自動可靠地抓到這種 semantic business-rule drift。**
+
+這種還是需要 LLM reasoning。
+
+這個 limitation 對你的 use case 非常重要。
+
+---
+
+# 所以我會怎麼定位 Repowise
+
+不是：
+
+> **「UA 不行，那換 Repowise。」**
+
+而是：
+
+> **UA 驗證了「從 code 自動推 business model」這條路效果可能有限。**
+>
+> **Repowise 值得測的是另一個 hypothesis：與其只讓 LLM 從 code 猜，加入 git history、ADR、PR、既有 docs，以及經人工確認的 decision，答案會不會更有用？**
+
+這兩個 experiment 有本質上的不同。
+
+如果你們公司剛好：
+
+**有一些文件 + Git history 還算完整 + PR/commit 有時候會寫原因 + legacy code 很多**
+
+那我覺得 **Repowise 非常值得你做下一個小 POC**。
+
+不是因為它目前評價已經好到可以導入。
+
+而是它剛好可以驗證你從 UA experiment 得到的新 hypothesis。
+
+---
+
+這樣甚至會讓你的 1-1 變得很好講：
+
+> **UA 還沒有完整測完，但 preliminary result 是單從 code + LLM 自動建立 business model，增益沒有我原先預期的大。**
+>
+> **這讓我開始懷疑，問題可能不是模型推理能力，而是它缺少 code 之外的歷史脈絡。**
+>
+> **下一步我想拿同一個 subsystem，加入既有 docs、git history / decisions，再測一次。如果加入這些 evidence 後效果明顯改善，那我們就知道真正需要的不是更漂亮的 graph，而是 richer organizational context。**
+
+我覺得這比直接宣布「UA failed」強很多，也比漫無目的再測十個產品有方向。

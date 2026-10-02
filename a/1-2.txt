@@ -1,0 +1,271 @@
+知道。你講的這一類，我會統稱成 **codebase intelligence / code knowledge graph / context engine**：不是單純把 repo 丟進 RAG，而是先抽出 symbol、call/import/dependency 等結構，再讓 LLM 在這個結構上回答「這套系統到底在幹嘛」。
+
+我看完目前（2026-09-29）的產品和近期使用回饋後，我的結論是：**這方向是真的有價值，但離「把 legacy code 丟進去，它就正確理解公司業務」還有一段距離。** 目前最值得期待的是「加速建立 mental model、找 dependency / blast radius、回答跨檔案問題」，不是取代資深工程師對業務的理解。
+
+### 我會怎麼選
+
+| 方案 | 我認為最適合的用途 | 對你這個 case |
+|---|---|---|
+| **Understand Anything** | 人類理解架構、business domain / flow、onboarding | **最值得先試** |
+| **Repowise** | dependency + git history + decisions + impact analysis，而且強調 evidence | **很值得一起做 control group** |
+| **Augment Context Engine** | 大型 / multi-repo 的 production-grade semantic retrieval | **有預算的 commercial benchmark** |
+| **Graphify** | local AST knowledge graph、讓 agent query 結構 | 值得玩，但我不會第一個押它 |
+| CodeGraph / Serena 等 | symbol-aware retrieval，減少 agent grep/read | 第二輪再試 |
+
+## 1. 第一個我會拿 **Understand Anything**
+
+原因不是 hype，而是它現在真的有一個 `/understand-domain`，設計目標就是從 codebase 抽出 **business domains → business flows → process steps**，另外還有 structural knowledge graph、chat、impact diff、onboarding 等。它不是只有「把 function 畫成蜘蛛網」。 :chatgpt-content-reference{index="0"}
+
+它的流程大致是：
+
+**source code → tree-sitter/static structure → LLM enrichment → architectural graph → business-domain graph**
+
+所以像你真正想問的：
+
+> 「退款到底怎麼走？」  
+> 「user suspension 會經過哪些 service？」  
+> 「這個 status 為什麼會從 A 變 B？」  
+> 「invoice finalize 前有哪些 business rule？」
+
+至少產品本身就是朝這個問題設計，而不是只回答「誰 call 了誰」。
+
+而且它是 local static-analysis tool，本身不 phone home；產出的 graph 也存在 repo 裡。當然 LLM enrichment 是否把內容傳出去，仍取決於你接的是哪個 coding agent/model/provider。 :chatgpt-content-reference{index="1"}
+
+目前 repo 約 84k stars、7k forks，開發也還滿活躍。只是我要特別提醒：**不要把 star 數當成效果證明。** Hacker News 上其實有人直接質疑它只是漂亮 graph、甚至質疑 GitHub stars；這恰好反映這類工具現在的 hype 很大。 :chatgpt-content-reference{index="2"}
+
+[Understand Anything GitHub](https://github.com/Egonex-AI/Understand-Anything?utm_source=chatgpt.com)
+
+---
+
+## 第二個我反而會試 **Repowise**
+
+如果 Understand Anything 是「幫你講故事」，Repowise 比較像：
+
+**「你講這個故事，有什麼證據？」**
+
+它不只 index AST/dependency，還把：
+
+- dependency graph
+- git history / co-change
+- tests
+- docs
+- architectural decisions
+- code health
+- change impact
+
+放在同一個 intelligence layer 裡，而且大部分結構分析不需要 LLM，可以全部 self-host/local 跑。 :chatgpt-content-reference{index="4"}
+
+這對 **legacy code 特別重要**。
+
+因為真正的 legacy business logic 很常不是：
+
+> `OrderService -> PaymentService -> DB`
+
+而是：
+
+> 「這三支檔案永遠一起改」  
+> 「這個奇怪 workaround 是四年前某個 production incident 留下來的」  
+> 「改這個 model 時某個 batch job 也要改」  
+> 「這段看起來 redundant，但其實是 backward compatibility」
+
+這些東西，**純 AST knowledge graph 根本看不出來**。
+
+Repowise 最近也有一些比較像真正 benchmark 的資料；例如在 Django workload 中，作者測得 agent output token 約少 31.6%。不過要注意，做最近那份大規模比較 benchmark 的人自己就在做 Repowise，所以即使 raw data/harness 公開，我也會把結果視為「值得參考，但不是中立第三方驗證」。 :chatgpt-content-reference{index="5"}
+
+[Repowise GitHub](https://github.com/repowise-dev/repowise?utm_source=chatgpt.com)
+
+---
+
+## 如果公司願意花錢，拿 **Augment Context Engine** 當 upper bound
+
+Augment 跟前兩個的產品哲學有點不同。
+
+它比較不是做一張給你看的 business graph，而是：
+
+> **讓 Claude Code / Codex / Cursor 每次需要 context 時，都更容易找到對的 code。**
+
+它一直很專注 large codebase / multi-repo semantic retrieval，現在 Context Engine 也可以獨立透過 MCP 接其他 coding agent。官方宣稱可以處理非常大的 codebase，並把 code、history、cross-repo relationship 等拿來做 retrieval。 :chatgpt-content-reference{index="7"}
+
+社群評價裡，我看到一個滿一致的模式：
+
+**真的在大型 codebase 工作的人，比較容易感受到 Augment 的 Context Engine 有差。** 有使用者表示接到其他 agent 後 retrieval 明顯改善，也有人說這仍是 Augment 最突出的部分。 :chatgpt-content-reference{index="8"}
+
+但另一個非常一致的抱怨是：**貴。**
+
+今年也有不少使用者抱怨 context engine credit burn 很快，甚至有人因成本最後回 Claude Code。現在官方方案是 usage-based，Standard $20/月含 $20 usage、Business $100/月含 $100 usage。 :chatgpt-content-reference{index="9"}
+
+所以我會把它當作：
+
+> 「目前 commercial product 可以做到什麼程度？」
+
+的 comparison point，而不是第一個 POC。
+
+---
+
+# 那 Graphify 呢？
+
+Graphify 的技術方向其實很合理。
+
+它用 tree-sitter 在 local 建 deterministic AST graph，包含：
+
+`calls / imports / inherits / mixes_in`
+
+等等 typed edges；而且會區分 `EXTRACTED`、`INFERRED`、ambiguous relationship，這個 design 我滿認同，因為至少它不會假裝所有 edge 都是真理。 :chatgpt-content-reference{index="10"}
+
+而且 code graph 本身可以完全 local，不需要 LLM。 :chatgpt-content-reference{index="11"}
+
+但這裡正好碰到你「半信半疑」的地方。
+
+### Graphify 的實際評價目前相當 mixed
+
+Graphify 自己的 benchmark 在 ERPNext 約 1M LOC repo 上，聲稱給 agent graph tool 之後，key-fact coverage 從 **70.8% → 82.0%**。
+
+問題是那個 code-intelligence benchmark **n=6**，所以我不會拿這個數字當成 definitive proof。 :chatgpt-content-reference{index="12"}
+
+更有趣的是最近一份第三方-ish benchmark。
+
+有人拿 Django / SWE-bench 類問題測 Repowise、CodeGraph、Serena、Graphify 等：
+
+**Codex + GPT-5.6 Sol：**
+
+- Repowise：output token -31.6%
+- CodeGraph：-24.4%
+- Serena：-14.8%
+- **Graphify：-8.9%**
+- code-review-graph：-6.0%
+
+而且在 quality scoring 上，**沒有任何一個 tool 得到有統計意義的 quality improvement**。 :chatgpt-content-reference{index="13"}
+
+更值得注意的是，同一份測試跑 Claude Code 時，Graphify 在一組 15 題測試中只被 agent call 了 3 次。
+
+這其實暴露一個整個 category 很大的問題：
+
+> **你建立了很好的 graph，不代表 agent 真的會用它。**
+
+甚至有另一個測試直接觀察到 Claude 繞過 Graphify MCP，自己跑 grep/read。 :chatgpt-content-reference{index="14"}
+
+Reddit 最近的實際心得也偏分歧，有人覺得 Graphify overkill、沒什麼用，也有人過去確實看過 20–30% token reduction；一個常見說法是 coding-agent harness 本身進步太快，幾個月前很有價值的 MCP/index layer，之後可能就被 agent 原生能力吃掉了。 :chatgpt-content-reference{index="15"}
+
+所以我的定位是：
+
+**Graphify 的 architecture 值得肯定，但我暫時不會因為它有 knowledge graph，就假設它會比現在的 Claude/Codex 更懂你的 legacy business。**
+
+---
+
+# Understand Anything 的真實效果呢？
+
+這個反而目前最缺資料。
+
+我沒有找到令人滿意的 independent quantitative benchmark。
+
+HN 的討論相當 skeptical，有人認為 graph view 很可能只是「looks pretty」，真正理解仍然需要工程師自己建立 mental model。另一方面，作者自己表示在公司使用時，工程師很喜歡它的 business knowledge mode。 :chatgpt-content-reference{index="16"}
+
+所以現在對它最合理的態度不是：
+
+> 「這一定沒用。」
+
+也不是：
+
+> 「84k stars，一定很強。」
+
+而是：
+
+> **它提出了一個非常對的 UX；目前還缺夠好的證據證明產生的 business model 有多可信。**
+
+---
+
+# 為什麼這類東西會「看起來懂很多，但可能沒真的懂」？
+
+這其實是核心問題。
+
+Static analysis 很擅長：
+
+`A calls B`  
+`X imports Y`  
+`Foo implements Bar`
+
+但真正的 business logic 往往藏在：
+
+```text
+code
++ configuration
++ DB schema
++ SQL / stored procedure
++ message queue
++ cron / scheduler
++ feature flags
++ permissions
++ external APIs
++ migration
++ git history
++ production conventions
++ tickets / ADR / docs
++「大家都知道不能動這裡」的 tribal knowledge
+```
+
+Graphify 自己也很誠實地承認，static extraction 看不到 dynamic dispatch、reflection、configuration wiring 等情況。 :chatgpt-content-reference{index="17"}
+
+尤其如果你們是 Java/Spring reflection、Rails magic、Python dynamic dispatch、event-driven architecture、SQL-heavy enterprise app，情況會更明顯。
+
+LLM 可以把這些缺口「推理」起來。
+
+問題也正在這裡：
+
+> **LLM 很擅長產生一個非常合理的 business explanation。**
+
+「合理」和「正確」是兩回事。
+
+---
+
+# 所以如果是你們公司，我會這樣做 POC
+
+我反而不會先拿整個 codebase 看它能不能生出漂亮 graph。
+
+挑一個公司裡 **資深 engineer 很熟，但新 engineer 很難理解** 的 subsystem，例如 billing / entitlement / order lifecycle。
+
+然後準備大約 20 個有 ground truth 的問題，例如：
+
+1. 「customer cancel subscription 後，到真正停止 entitlement 中間發生什麼？」
+2. 「invoice status `FINALIZED` 有哪些入口可以產生？」
+3. 「改 `AccountType` enum 會影響哪些 API / batch / DB logic？」
+4. 「這個 payment failure 哪些情況會 retry、哪些不會？」
+5. 「哪裡真正 enforce admin permission？」
+6. 「為什麼這支 service 有兩套看起來重複的 implementation？」
+7. 「如果把這張 table 的欄位改掉，有哪些 consumer 會壞？」
+8. 「哪一段 behavior 是歷史相容性，而不是現在的 design？」
+
+然後同樣的問題丟給：
+
+**A. Claude Code / Codex 原生**
+
+**B. + Understand Anything**
+
+**C. + Repowise**
+
+如果有預算再加：
+
+**D. + Augment Context Engine**
+
+不要只評答案「看起來好不好」，而是讓熟系統的人 blind grade 五件事：
+
+**correctness、missing paths、hallucinated paths、evidence/citations、time/token cost。**
+
+特別把 **「漏掉 business exception」** 單獨記。
+
+因為對 legacy system，最大的風險通常不是回答完全錯，而是：
+
+> 它答對了 80%，而且答得非常有自信，剛好漏掉最重要的 20%。
+
+---
+
+如果你問我「明天就要開始做，我先裝哪個」，我的順序會是：
+
+**先跑 Understand Anything 看它能不能抽出你們真正認得的 business flows；同一個 subsystem 再用 Repowise 驗證 dependency / history / blast radius。**
+
+**Graphify 可以當第三個 baseline，但我不會先花最多時間在它上面。**
+
+如果你願意，我下一步可以直接幫你做一份 **「legacy codebase AI understanding POC 測試規格」**，包含 20–30 個測試題型、評分表，以及 Understand Anything / Repowise / 原生 Claude Code 要怎麼跑，這樣你大概一個小規模 experiment 就能判斷這類東西到底是不是玩具。
+
+
+
+::chatgpt-content-reference{index="18"}
